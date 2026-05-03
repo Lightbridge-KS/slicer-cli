@@ -1,0 +1,559 @@
+# 3D Slicer — In-Process HTTP Surface Reference
+
+**Audience:** developers building CLI tools or MCP servers that drive Slicer from outside the application.
+**Scope:** the built-in `WebServer` core module (HTTP REST + DICOMweb subset) on Slicer **5.x**.
+**Source basis:** official docs (`slicer.readthedocs.io`), the actual handler source (`Slicer/Modules/Scripted/WebServer/WebServerLib/SlicerRequestHandler.py` on `main`), and the `slicerio` Python client.
+
+> **TL;DR.** Slicer ships a single embedded HTTP server on **port 2016** (auto-incremented if busy) with three handlers mounted at `/`, `/dicom`, and `/slicer`. The `/slicer` surface is the real REST API for scene/render/Python control. The `/dicom` surface is a **read-only QIDO-RS + WADO-RS subset** — no STOW. Everything runs inside the Qt event loop, single-threaded, in the same process and with the same OS privileges as the Slicer app.
+
+---
+
+## 1. Architecture at a glance
+
+```
+                      ┌───────────────────────────────────────────────┐
+                      │                3D Slicer process              │
+                      │  (Qt main loop owns everything, single-thread)│
+                      │                                               │
+   HTTP client ──►    │   ┌─────────────────────────────────────┐     │
+   (curl / SDK /      │   │   SlicerWebServer (Python, scripted)│     │
+   slicerio /         │   │   listens on 0.0.0.0:2016 (default) │     │
+   MCP server)        │   │                                     │     │
+                      │   │   ┌─────────────────────────────┐   │     │
+                      │   │   │ Request router (substring)  │   │     │
+                      │   │   └──────┬──────┬──────┬────────┘   │     │
+                      │   │          │      │      │            │     │
+                      │   │   ┌──────▼──┐┌──▼───┐┌─▼─────────┐  │     │
+                      │   │   │ Static  ││/dicom││ /slicer   │  │     │
+                      │   │   │  /      ││QIDO+ ││ MRML, exec│  │     │
+                      │   │   │ docroot ││WADO  ││ render…   │  │     │
+                      │   │   └─────────┘└──┬───┘└──────┬────┘  │     │
+                      │   └──────────────┬──┴───────────┴───────┘     │
+                      │                  │                            │
+                      │       ┌──────────▼─────────────┐              │
+                      │       │ slicer.dicomDatabase   │   (ctkDICOM) │
+                      │       │ slicer.mrmlScene       │   (MRML)    │
+                      │       │ Python interpreter     │   (PythonQt)│
+                      │       └────────────────────────┘              │
+                      └───────────────────────────────────────────────┘
+```
+
+Key consequences of this architecture, all of which shape any CLI/MCP design:
+
+- **Single-threaded.** The HTTP server is glued to the Qt event loop. Long-running endpoint handlers (segmentation, big I/O, `exec` running a slow script) block *all* other requests and freeze the GUI. Plan your client to issue work **serially per Slicer instance**, with timeouts proportional to the operation, never with bursty parallel calls.
+- **No built-in queue, no job ID.** There is no native async/202-Accepted pattern. If you need that, you must build it yourself in `/slicer/exec` Python (e.g., spawn a `qt.QTimer.singleShot(0, …)` and have the client poll a status endpoint you also implement via `exec`).
+- **No authentication. No HTTPS in defaults.** The HTTPS support exists in code (cert/key parameters) but is not wired through the GUI. Treat the server as inherently trusted-loopback.
+- **Same-process privileges.** `/slicer/exec` is *literally* `exec()` on the Python interpreter — equivalent to giving shell access to the Slicer-running user. The official docs say so explicitly. (See §10.)
+- **No native DICOMweb STOW.** The `/dicom` handler implements a *subset* of QIDO-RS + WADO-RS sufficient for OHIF read-only viewing. Pushing data into Slicer's DICOM DB over HTTP requires either `/slicer/accessDICOMwebStudy` (Slicer pulls from another DICOMweb server) or `/slicer/mrml` POST (load a file), or the C-STORE listener on its non-HTTP TCP port.
+
+---
+
+## 2. Lifecycle: starting and discovering the server
+
+### 2.1 Default port and discovery
+
+The server defaults to **port 2016**, but if it's busy it will probe sequentially upward — meaning two Slicer instances on the same host will be on 2016 and 2017 (or the first free port). Your client cannot assume 2016. Discover liveness/version with:
+
+```http
+GET /slicer/system/version
+```
+
+A successful JSON response containing `applicationName: "Slicer"` is the canonical "this is a Slicer" signal. `slicerio` uses exactly this probe with a 3-second timeout.
+
+### 2.2 Interactive mode
+
+The user opens the WebServer module in the module panel and clicks **Start server**. Settings (Slicer API on/off, exec on/off, DICOMweb on/off, static on/off, CORS on/off) are read from `QSettings` keys under `WebServer/...`.
+
+### 2.3 Headless (no GUI) mode
+
+There are two flavors, both worth supporting:
+
+```bash
+# Headless service — GUI never shown, server starts immediately
+/Applications/Slicer.app/Contents/MacOS/Slicer \
+  --no-splash --no-main-window \
+  --python-code "wslogic = getModuleLogic('WebServer'); \
+                 wslogic.port=2016; \
+                 wslogic.addDefaultRequestHandlers(); \
+                 wslogic.start()"
+```
+
+```bash
+# Same, but launching from a script file with shutdown sentinel
+Slicer --no-splash --no-main-window --python-script /path/to/start_server.py
+```
+
+Two important caveats of headless mode:
+
+| Concern | Impact |
+|---|---|
+| OpenGL context | Some endpoints (3D view, slice render, screenshot) need a usable OpenGL context. On a true headless box with no display, you need **Mesa software rendering** (`GALLIUM_DRIVER=llvmpipe`, `MESA_GL_VERSION_OVERRIDE=3.3COMPAT`). Without it, `/screenshot` and `/slice` fail or return empty PNGs. |
+| `--no-main-window` quirks | A few extensions assume `slicer.util.mainWindow()` is non-null. The built-in `screenshot` handler calls `slicer.util.mainWindow().grab()` — meaning **`/screenshot` won't work without `--main-window`**. `/slice` and `/threeD` use the layout manager and *do* work. |
+
+### 2.4 Bootstrapping the server programmatically
+
+If you want your CLI to *manage* the lifecycle (start Slicer if absent, stop it after a job), copy the pattern from `slicerio.server.start_server` / `stop_server` / `is_server_running`:
+
+```
+client                           OS / Slicer
+  │                                   │
+  │── GET /slicer/system/version ────►│  (probe 3s)
+  │                                   │
+  │  if no response:                  │
+  │── spawn Slicer subprocess ───────►│
+  │   with --python-code              │ Slicer starts,
+  │                                   │ WebServer registers handlers,
+  │                                   │ port 2016 binds
+  │── poll GET /slicer/system/version│
+  │   every ~500ms until 200 ◄────────│
+  │                                   │
+  │── do work… ─────────────────────► │
+  │                                   │
+  │── DELETE /slicer/system ─────────►│  Slicer schedules slicer.util.exit()
+  │                                   │  via QTimer.singleShot(1000ms)
+```
+
+The `DELETE /slicer/system` shutdown is not aggressive — it returns 200 immediately, then exits the app one second later via a Qt timer. Your CLI should treat the response as "shutdown initiated", not "process gone".
+
+---
+
+## 3. Endpoint surface — top-level map
+
+| Mount | Handler | What it serves | Toggle (Advanced settings) |
+|---|---|---|---|
+| `/` | `StaticPagesRequestHandler` | Files from the module's `docroot/` (includes the bundled OHIF viewer at `/browse`). Has URL-rewrite rules. | Static pages |
+| `/dicom` | `DICOMRequestHandler` | DICOMweb QIDO-RS + WADO-RS subset over `slicer.dicomDatabase` | DICOMweb API |
+| `/slicer/*` | `SlicerRequestHandler` | The actual REST API for MRML, rendering, Python exec, etc. | Slicer API (with Slicer API exec separately gating `/slicer/exec`) |
+
+Custom handlers can be appended via `WebServerLogic.requestHandlers.append(...)`. Resolution is by `canHandleRequest()` confidence score (highest wins). Built-in confidences are crude (Slicer handler returns 0.5 for any URI starting with `/slicer/`), so a custom handler with a higher score can intercept everything cleanly.
+
+---
+
+## 4. The `/slicer` REST API — full route table
+
+Routing inside `SlicerRequestHandler.handleRequest()` is **substring-prefix `find()`** in a single if/elif chain. This has two consequences worth knowing:
+
+1. **Plurals must be checked before singulars.** `/slicer/volumes` is matched before `/slicer/volume`, `/slicer/fiducials` before `/slicer/fiducial`, `/slicer/segmentations` before `/slicer/segmentation`, `/slicer/gridTransforms` before `/slicer/gridTransform`. Your client should always use the documented exact paths — sub-strings of other endpoint names will silently be misrouted.
+2. **No central path normalization.** Trailing slashes, case, and extra segments are not normalized — what you send is largely what gets matched.
+
+### 4.1 Complete route inventory (verified against `main` source)
+
+Authoritative as of Slicer 5.8.x main; the `(undoc)` flag means the route exists in source but is not in the user docs.
+
+| Method | Path | Purpose | Body / Query | Returns |
+|---|---|---|---|---|
+| POST/GET | `/slicer/exec` | Run arbitrary Python in the app interpreter. **Gated** by `Slicer API exec`. | body OR `?source=...` URL-encoded Python | `application/json` of `__execResult` dict |
+| GET | `/slicer/timeimage` | Timing/debug — render current time as PNG | `?color=RRGGBB` | `image/png` |
+| GET | `/slicer/system/version` | App identity + version | — | JSON (used as liveness probe) |
+| DELETE | `/slicer/system` | Quit the application (1 s deferred via `QTimer`) | — | `{"success": true}` |
+| PUT | `/slicer/gui` | Show/hide GUI chrome and switch viewer layouts | `?contents=full|viewers&viewersLayout=fourup|oneup3d|...` | `{"success": true}` |
+| GET | `/slicer/screenshot` | Grab the **main window** as PNG (requires non-null main window) | — | `image/png` |
+| GET | `/slicer/slice` | Render a slice viewer to PNG, with optional pose changes | `?view=red|yellow|green&offset=mm&scrollTo=0..1&size=px&copySliceGeometryFrom=red&orientation=axial|sagittal|coronal&mode=...` | `image/png` |
+| GET | `/slicer/threeD` | Render the first 3D view to PNG, optional camera | `?lookFromAxis=L|R|A|P|I|S` | `image/png` |
+| GET | `/slicer/threeDGraphics` *(undoc)* | Export 3D view as **glTF** (binary geometry) | `?widgetIndex=0&boxVisible=false&format=glTF` | `model/gltf+json` (geometry stream) |
+| GET | `/slicer/mrml` `/mrml/names` | List names of selected MRML nodes | `?id=…&class=vtkMRMLVolumeNode&name=…` | JSON list |
+| GET | `/slicer/mrml/ids` | List ids of selected MRML nodes | (same selectors) | JSON list |
+| GET | `/slicer/mrml/properties` | Full property dict of selected nodes | (same selectors) | JSON object keyed by node id |
+| GET | `/slicer/mrml/file` | **Save** a single selected node to a *server-side* local file | `?...&localfile=/abs/path&useCompression=true` | `{"success": true}` |
+| POST | `/slicer/mrml/file` (and `/slicer/mrml`) | **Load** a file (or URL) into the scene as a typed node | `?localfile=…|url=…&filetype=VolumeFile|SegmentationFile|ModelFile|MarkupsFile|TransformFile|TableFile|TextFile|SequenceFile|SceneFile&...` | `{"success": true, "loadedNodeIDs": [...]}` |
+| PUT | `/slicer/mrml` | Reload selected storable nodes from their original file | (selectors) | `{"success": true, "reloadedNodeIDs": [...]}` |
+| DELETE | `/slicer/mrml` (and `/slicer/mrml/file`) | Remove selected nodes; **with no selectors, clears the entire scene** | (selectors or none) | `{"success": true}` |
+| GET | `/slicer/tracking` | Set position/orientation of an internal "trackingDevice" cursor cube | `?m=…&q=w,x,y,z&p=r,a,s` | text |
+| GET | `/slicer/sampledata` | Download and load a built-in `SampleData` set | `?name=MRHead\|CTAAbdomenPanoramix\|…` | text |
+| GET | `/slicer/volumeSelection` | Cycle the active volume in slice viewers | `?cmd=next\|previous` | text |
+| GET | `/slicer/volumes` | List all `vtkMRMLScalarVolumeNode` + `vtkMRMLLabelMapVolumeNode` | — | JSON `[{name,id}, ...]` |
+| GET | `/slicer/volume?id=…` | Stream a node as **NRRD** (octet-stream) | `?id=NODE_ID` | `application/octet-stream` (NRRD) |
+| POST | `/slicer/volume?id=…` | Upload an NRRD blob and create/replace a volume node | NRRD body, must be 3D, LPS, little-endian, raw, signed short | JSON status |
+| GET | `/slicer/gridTransforms` | List all `vtkMRMLGridTransformNode` | — | JSON `[{name,id}, ...]` |
+| GET | `/slicer/gridTransform?id=…` | Stream the displacement grid as NRRD | `?id=NODE_ID` | `application/octet-stream` |
+| POST | `/slicer/gridTransform` | (Documented but **`raise NotImplementedError`** in source) | — | 500 |
+| GET | `/slicer/fiducials` | All `vtkMRMLMarkupsFiducialNode`s as flat JSON | — | JSON `{nodeId: {name, color, scale, markups[…]}}` |
+| PUT | `/slicer/fiducial` | Set position of one control point in one fiducial node | `?id=NODE_ID&index=N&r=…&a=…&s=…` | `{"success": true}` |
+| GET | `/slicer/segmentations` | All `vtkMRMLSegmentationNode`s with their segment IDs | — | JSON `{nodeId: {name, segmentIDs:[…]}}` |
+| GET | `/slicer/segmentation?segmentationID=…&format=glTF` | (**`{"result": "not implemented yet"}`** in current source) | — | placeholder |
+| POST | `/slicer/accessDICOMwebStudy` | Tell Slicer to pull a study from a DICOMweb server (e.g. OrthanC) and load it | JSON body: `dicomWEBPrefix`, `dicomWEBStore`, `studyUID`, `accessToken` | `{"success": true}` |
+
+> **Watch out:** `DELETE /slicer/mrml` *with no query parameters* is `slicer.mrmlScene.Clear()`. Every CLI/MCP wrapper for delete must enforce that at least one of `id`, `class`, or `name` is set, or your AI agent will eventually nuke a scene by accident.
+
+### 4.2 Node selector semantics (used by every `/mrml/*` endpoint)
+
+```
+                ┌──────────────────────────────────────────────┐
+                │  Node selection logic in getNodesFiltered…   │
+                └──────────────────────────────────────────────┘
+
+   ?id=X        ─►  GetNodeByID(X)               ─►  [node] or []
+                    (class/name ignored when id is provided)
+
+   ?class=C     ─►  getNodesByClass(C)           ─►  list of nodes of class C
+   (no id)
+
+   ?name=N      ─►  filter the above by name == N
+
+   nothing      ─►  getNodesByClass("vtkMRMLNode") ─► EVERY node in the scene
+```
+
+This is why "no parameters" for DELETE means "everything" — and why a nicely-typed CLI/MCP layer should require explicit `--all` rather than implicit empty.
+
+### 4.3 `loadedNodeIDs` for round-tripping
+
+Every `POST /slicer/mrml` returns `loadedNodeIDs` — a list of MRML node IDs (`vtkMRMLScalarVolumeNode1`, etc.). These IDs are stable for the lifetime of the scene. Your CLI/MCP should treat them as the canonical handle for follow-on operations (rendering a slice, exporting NRRD, attaching a segmentation, deleting). Names are user-mutable and not unique; IDs are unique within a scene.
+
+---
+
+## 5. The `/dicom` DICOMweb subset — what it is and is **not**
+
+### 5.1 Implemented routes (read-only)
+
+| Method | Path | DICOMweb concept | Notes |
+|---|---|---|---|
+| GET | `/dicom/studies` | QIDO-RS study list | Supports `?offset=`, `?limit=`, `?PatientID=` |
+| GET | `/dicom/studies/{studyUID}/metadata` | QIDO-RS study metadata | DICOM JSON model |
+| GET | `/dicom/studies/{studyUID}/series` | QIDO-RS series list | |
+| GET | `/dicom/studies/{studyUID}/series/{seriesUID}/metadata` | QIDO-RS series metadata | |
+| GET | `/dicom/studies/{studyUID}/series/{seriesUID}/instances` | QIDO-RS instance list | |
+| GET | `/dicom/studies/{studyUID}/series/{seriesUID}/instances/{sopUID}` | WADO-RS retrieve instance | Returns the raw DICOM file (`application/dicom`) |
+| GET | `/dicom/studies/{studyUID}/series/{seriesUID}/instances/{sopUID}/metadata` | WADO-RS instance metadata | |
+| GET | `/dicom?object={sopUID}` | WADO-URI compatibility | Single-instance download by SOP UID |
+
+All of this is sourced from `slicer.dicomDatabase`. Anything not yet imported into Slicer's local DICOM database is invisible.
+
+### 5.2 What's missing — important for an Orthanc workflow
+
+- **No STOW-RS.** You cannot push DICOM into Slicer's DICOM DB by HTTP POST to `/dicom/studies`. To get DICOM in, you have these options:
+
+  1. Push via **DIMSE C-STORE** to the Slicer DICOM listener (your config has port 11112 with AET `SLICER`).
+  2. Have Slicer **pull from OrthanC** by calling `POST /slicer/accessDICOMwebStudy` (Slicer is the DICOMweb client, OrthanC is the server — OrthanC's DICOMweb plugin must be enabled).
+  3. **Load files** via `POST /slicer/mrml?localfile=...&filetype=VolumeFile` if the data is already on disk.
+
+- **No frame-level WADO-RS.** Frame-by-frame retrieval (`/frames/{frameList}`) and rendered media types (`/rendered`) are not implemented.
+- **No bulk-data URIs.** You only get the raw DICOM file and the JSON model.
+- **No transfer-syntax negotiation** beyond defaults; the handler returns whatever's stored.
+
+Mental model:
+
+```
+                                 OrthanC                                  Slicer
+                       (DICOMweb plugin enabled)                  (built-in WebServer)
+
+   Push DICOM to Slicer    ─►   STOW-RS supported ────────►   /dicom (NO STOW)        ✗
+                                                              C-STORE on TCP 11112    ✓
+                                                              POST /accessDICOMwebStudy
+                                                              (Slicer pulls from Orthanc) ✓
+
+   Read DICOM from Slicer  ─►   QIDO/WADO supported   ────►   /dicom QIDO+WADO subset ✓
+   (e.g., browse with OHIF)                                   read-only of slicer DB  ✓
+
+   Slicer pulls from Orthanc:
+     POST /slicer/accessDICOMwebStudy
+       body:
+         { "dicomWEBPrefix":  "http://localhost:8042",
+           "dicomWEBStore":   "dicom-web",
+           "studyUID":         "1.2.840…",
+           "accessToken":      "" }
+```
+
+For Slicer **pushing into Orthanc** (writing back segmentations etc.), you do *not* use the WebServer — you use either DIMSE (`Slicer's "Send to DICOM server"`) or the bundled `dicomweb_client` Python module via `/slicer/exec`:
+
+```python
+# Run this via POST /slicer/exec
+import dicomweb_client.api
+client = dicomweb_client.api.DICOMwebClient(url="http://localhost:8042/dicom-web")
+with open("/tmp/seg.dcm", "rb") as f:
+    client.store_instances(datasets=[pydicom.dcmread(f)])
+__execResult = {"stored": True}
+```
+
+---
+
+## 6. Capability map for your specific goals
+
+The original brief flagged these capability buckets. Here's how each maps to the actual surface, and where the rough edges are.
+
+### 6.1 Inspect & manipulate MRML scene
+
+| Want | How (preferred) | Caveats |
+|---|---|---|
+| List all nodes | `GET /slicer/mrml/ids?class=vtkMRMLNode` | Returns every node — verbose; filter by class |
+| Get full properties of a node | `GET /slicer/mrml/properties?id=…` | Property serialization is best-effort; some VTK properties don't round-trip |
+| Load a volume file | `POST /slicer/mrml?localfile=...&filetype=VolumeFile` | File must be readable from the Slicer process's filesystem view |
+| Save a volume to file | `GET /slicer/mrml/file?id=…&localfile=/abs/out.nrrd` | "Save to file" path is server-side; for byte stream use `/slicer/volume?id=…` |
+| Remove one node | `DELETE /slicer/mrml?id=…` | Must include selector — empty = clear scene |
+| Read/write volume bytes | `GET/POST /slicer/volume?id=…` | NRRD only, scalar / signed-short subset; for general I/O use `mrml/file` |
+
+### 6.2 Trigger modules / segmentation / pipelines
+
+There is **no module-trigger endpoint**. The supported pattern is:
+
+```
+Client                        Slicer (/slicer/exec)
+  │                                  │
+  │── POST /slicer/exec ────────────►│ Python interpreter
+  │   import SegmentEditorEffects    │
+  │   logic = slicer.modules         │
+  │     .segmentations.logic()       │
+  │   ... run effect ...             │
+  │   __execResult = {               │
+  │     "segmentationNodeID": …,     │
+  │     "segmentIDs": [...],         │
+  │     "elapsed": 12.3 }            │
+  │                                  │
+  │◄── 200 application/json ─────────│
+```
+
+This means an MCP tool like `run_segmentation(volume_id, params)` is essentially a *templated `/slicer/exec` call*. Practical guidance:
+
+- Keep the executed Python *short*. Long scripts as request bodies are hard to debug. Prefer to install a server-side helper module once (drop a `.py` into Slicer's startup script directory or `--additional-module-paths`) and call its functions.
+- The `__execResult` convention is the only return channel. It must be a JSON-serializable `dict`.
+- **Errors propagate as 500.** If your Python raises, the response is `{"message": "…"}` with status 500.
+- Long jobs block the event loop. For anything > a few seconds, drive the work in a worker `qt.QThread` (carefully — most Slicer/MRML calls must be on the main thread) or split into start/poll/result endpoints implemented in your helper module.
+
+### 6.3 Capture screenshots, slice views, 3D renders
+
+Three native PNG endpoints, plus glTF for rich 3D.
+
+| Endpoint | What you get | Best use |
+|---|---|---|
+| `/slicer/screenshot` | Whole main window incl. toolbars | Demo / debugging — needs `--main-window` |
+| `/slicer/slice?view=red&offset=…` | Just the slice viewer pixels at a chosen pose | Programmatic atlasing, automated screenshot tests, AI agents that need 2D context |
+| `/slicer/threeD?lookFromAxis=A` | Just the first 3D view, snapped to a cardinal direction | Quick rendered 3D thumbnails |
+| `/slicer/threeDGraphics?format=glTF` | A glTF asset (binary) of the 3D scene | Streaming the scene to a web viewer or a downstream renderer |
+
+For arbitrary 3D camera control beyond the cardinal axes, use `/slicer/exec` to call `slicer.app.layoutManager().threeDWidget(0).threeDView().resetCamera()` or set `cameraNode.SetPosition()`/`SetFocalPoint()` directly, then re-fetch `/slicer/threeD`.
+
+### 6.4 Execute arbitrary Python
+
+Already covered, but make this an explicit, opt-in tool in your MCP. Not "an action" — *the* power tool, with all the security implications. Treat any agent path that constructs `/slicer/exec` payloads from natural-language input as a potential RCE surface and gate it accordingly.
+
+### 6.5 Annotation / measurement / markup workflows
+
+Native HTTP coverage is **thin**:
+
+- `GET /slicer/fiducials` — listing of `vtkMRMLMarkupsFiducialNode` (point lists only).
+- `PUT /slicer/fiducial` — set one control point's position.
+
+That's it. **Lines, angles, curves, planes, ROI** — none of them have dedicated endpoints. Your MCP should layer all those on top of `/slicer/exec`, e.g.:
+
+```python
+# Create a markups line
+n = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsLineNode', 'AgentLine_1')
+n.AddControlPoint([r1,a1,s1])
+n.AddControlPoint([r2,a2,s2])
+__execResult = {
+  "id": n.GetID(),
+  "length_mm": n.GetLineLengthWorld()
+}
+```
+
+For round-tripping markups *between* the agent and Slicer, the cleanest format is **markups JSON** (`.mrk.json` schema v1.0.3) — load it with `POST /slicer/mrml?...&filetype=MarkupsFile` and save it with `GET /slicer/mrml/file?…&localfile=/tmp/m.mrk.json`. This avoids reinventing the schema in your protocol.
+
+---
+
+## 7. Slicer ↔ OrthanC integration patterns
+
+Putting your existing setup (Slicer SLICER@127.0.0.1:11112, OrthanC ORTHANC@127.0.0.1:4242) together with the WebServer surface, here are the four useful patterns. The right one depends on direction and trigger source.
+
+```
+                  ┌─────────┐                            ┌─────────┐
+                  │  Agent  │                            │ OrthanC │
+                  │  / CLI  │                            │ + DCMWeb│
+                  └────┬────┘                            └────┬────┘
+                       │                                      │
+   ┌───────────────────┴──────────────────────────────────────┴───────────┐
+   │                                                                       │
+   │  PATTERN A — Agent tells Slicer "go pull this study from Orthanc"     │
+   │                                                                       │
+   │     Agent ──HTTP POST──► Slicer:2016/slicer/accessDICOMwebStudy       │
+   │     Slicer ──QIDO/WADO──► Orthanc:8042/dicom-web                      │
+   │     Slicer adds to dicomDatabase, then loads into the scene           │
+   │                                                                       │
+   ├───────────────────────────────────────────────────────────────────────┤
+   │  PATTERN B — Orthanc pushes DICOM via DIMSE to Slicer                 │
+   │                                                                       │
+   │     Orthanc ──C-STORE──► Slicer AE @ 127.0.0.1:11112 (SLICER)         │
+   │     Slicer's DICOM listener stores into dicomDatabase                 │
+   │     (Loading into scene is a separate step — agent calls /slicer/exec │
+   │      `DICOMUtils.loadPatientByUID(...)` or browser UI)                │
+   │                                                                       │
+   ├───────────────────────────────────────────────────────────────────────┤
+   │  PATTERN C — Agent reads Slicer's local DICOM DB over /dicom (read)   │
+   │                                                                       │
+   │     Agent ──QIDO──► Slicer:2016/dicom/studies                         │
+   │     Agent ──WADO──► .../instances/{sop}                               │
+   │     (Use case: agent inspects what Slicer currently knows)            │
+   │                                                                       │
+   ├───────────────────────────────────────────────────────────────────────┤
+   │  PATTERN D — Slicer pushes results back to Orthanc                    │
+   │                                                                       │
+   │     Agent ──HTTP POST──► Slicer:2016/slicer/exec                      │
+   │       (script runs dicomweb_client.store_instances or DIMSE C-STORE   │
+   │        to Orthanc:4242)                                               │
+   │     Slicer ──STOW or C-STORE──► Orthanc                               │
+   │                                                                       │
+   └───────────────────────────────────────────────────────────────────────┘
+```
+
+For your stated purpose — agent driving Slicer — **A and D are the bread and butter**. B is for clinical-flow ingestion (sender outside your control), C is for read-side situational awareness without touching Slicer's Python.
+
+---
+
+## 8. Known gotchas (from source reading)
+
+These are not in the user docs but they will absolutely bite you:
+
+1. **`accessDICOMwebStudy` has a bug in current `main`.** The handler does `request = json.loads(requestBody), b"application/json"` — that's a *tuple*, then immediately does `request["dicomWEBPrefix"]`, which is a `TypeError` on the tuple. As of the source I reviewed, this endpoint may not work in headless tests; verify against your build. If it fails, fall back to driving the same logic via `/slicer/exec` calling `DICOMLib.DICOMUtils.importFromDICOMWeb(...)` directly.
+2. **`/slicer/segmentation`** is a placeholder returning `{"result": "not implemented yet"}` regardless of input. Do not depend on it. Use `/slicer/exec` to manipulate `vtkMRMLSegmentationNode` and serialize the result yourself (e.g., write `.seg.nrrd` and `GET /slicer/mrml/file`).
+3. **POST `/slicer/gridTransform`** raises `NotImplementedError`. GET works; POST does not.
+4. **`POST /slicer/volume`** is *very* picky: 3D, LPS, little-endian, raw, signed short. Anything else is rejected. For arbitrary volume upload prefer `POST /slicer/mrml?localfile=…&filetype=VolumeFile` after writing to a path Slicer can read.
+5. **`/slicer/exec` body parsing.** If the request body is non-empty it is used verbatim as the Python source. If the body is empty it falls back to a URL-encoded `?source=…` query parameter. Don't send both.
+6. **`/slicer/exec` globals are shared.** Successive `exec` calls share the same `globals()` dict — so a variable you defined in one call can be read in the next. Useful for state, dangerous for purity. The handler resets `__execResult` each call but nothing else.
+7. **slicerio uses `/slicer/open?url=…`** for `slicer://` URLs, but the route table doesn't include `/open`. This branch of slicerio appears stale or relies on a future addition; using the `/slicer/mrml` POST path (`url=…&filetype=…`) is what actually works on `main`.
+8. **Substring routing means new endpoints are positionally fragile.** If Anthropic-style versioning of routes is important, mount your own request handler with a higher confidence rather than appending to `/slicer/...`.
+
+---
+
+## 9. Security model — designed for trusted loopback only
+
+Every official document is explicit: this is *not* a hardened API. Concretely:
+
+- **No authentication, no authorization, no rate limiting.** Any process that can reach the port has full access.
+- **CORS off by default**, and the docs note CORS is only enforced by browsers — non-browser clients ignore it.
+- **HTTPS support exists in code** (cert/key parameters in `WebServer.py`) but isn't surfaced in the GUI; you'd start the server programmatically with `keyfile=`/`certfile=` to use it.
+- **`/slicer/exec` is a remote shell.** Slicer's docs say so verbatim ("equivalent to giving the user of the API the password to whatever account is running Slicer").
+
+For your CLI/MCP design, this means:
+
+```
+DEFAULT POSTURE
+   • bind 127.0.0.1 only (Slicer's default is fine)
+   • exec OFF unless explicitly needed
+   • DICOMweb on (needed for agent flows)
+   • CORS off
+   • talk only over loopback or ssh tunnel
+
+REMOTE USE (do NOT expose 2016 on a network)
+   • SSH-tunnel from agent host:  ssh -L 2016:127.0.0.1:2016 user@host
+   • Or terminate TLS at a reverse proxy (nginx/Caddy) and add basic auth
+     or mTLS in front of Slicer
+   • Apply firewall rules to block direct 2016 access
+```
+
+If your MCP server eventually runs on a different machine from Slicer, do *not* extend Slicer's HTTP server itself — keep it on loopback and put your MCP between the agent and Slicer, with the MCP holding the auth.
+
+---
+
+## 10. Recommendations for your CLI / MCP design
+
+### 10.1 Layering
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  AI agent (Claude, etc.)                                         │
+└────────────┬─────────────────────────────────────────────────────┘
+             │  MCP / JSON-RPC / stdio
+             ▼
+┌──────────────────────────────────────────────────────────────────┐
+│  Your "slicer-mcp" server (Python + httpx)                       │
+│                                                                  │
+│   • Health/lifecycle: probe /slicer/system/version,              │
+│     spawn Slicer if down, manage shutdown on exit.               │
+│                                                                  │
+│   • Domain tools (each is a thin wrapper):                       │
+│       - dicom.search_studies(q)        →  /dicom/studies         │
+│       - dicom.load_study(studyUID)     →  /accessDICOMwebStudy   │
+│       - scene.list_nodes(class_)       →  /mrml/ids              │
+│       - scene.delete_node(id)          →  /mrml?id=…  (DELETE)   │
+│       - render.slice(view, offset…)    →  /slice                 │
+│       - render.threeD(lookFromAxis)    →  /threeD                │
+│       - render.gltf(widgetIndex)       →  /threeDGraphics        │
+│       - markups.create_line(p1, p2)    →  /exec (templated)      │
+│       - segmentation.run_total(volId)  →  /exec (templated)      │
+│       - python.exec(code)              →  /exec (DANGER, gated)  │
+│                                                                  │
+│   • Server-side helper module installed once (loaded via         │
+│     --additional-module-paths) that exposes nice functions       │
+│     `agent.create_line`, `agent.run_segmentation`, etc., so      │
+│     your /exec payloads are tiny.                                │
+│                                                                  │
+└────────────┬─────────────────────────────────────────────────────┘
+             │  HTTP, loopback only
+             ▼
+┌──────────────────────────────────────────────────────────────────┐
+│  Slicer (interactive or headless)                                │
+│   • WebServer @ 127.0.0.1:2016                                   │
+│   • DICOM listener  @ 127.0.0.1:11112 (DIMSE, separate)          │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### 10.2 Concrete design rules
+
+1. **Treat node IDs as the canonical handle.** Names are not unique, IDs are. After every load, store the returned `loadedNodeIDs` and reference them in subsequent calls.
+2. **Wrap `DELETE /slicer/mrml` carefully.** Require an explicit `--all` or `confirm=true` to allow scene-clear; otherwise reject empty selectors.
+3. **Hide raw `/slicer/exec` from the agent** unless the user has flipped a "developer mode" switch. Expose it instead as named, validated tools whose Python templates you author.
+4. **Install a server-side helper module.** A tiny `AgentTools.py` with stable functions (`agent.snapshot_state()`, `agent.serialize_segmentation(node_id) -> path`) keeps your protocol stable as Slicer's internals shift.
+5. **For DICOM ingest, prefer Pattern A (`/accessDICOMwebStudy`) for agent-initiated flows** — it's atomic from the agent's perspective. Pattern B (DIMSE C-STORE) is better for clinical pipelines outside the agent's loop.
+6. **For DICOM egress, use the bundled `dicomweb_client`** via `/slicer/exec` against OrthanC's DICOMweb plugin — much cleaner than C-STORE for write-back.
+7. **Make every render endpoint cacheable.** Slice and 3D PNGs are expensive; key them on `(scene_revision, viewer, params)` and cache. Implement a "scene revision" counter via `/slicer/exec` (`slicer.mrmlScene.GetSceneXMLString().__hash__()` is fine for an MVP).
+8. **Headless mode requires a software GL** for any rendering endpoint. Document this clearly; your MCP can detect a black PNG and surface a useful error.
+9. **Probe-before-call.** Always `GET /slicer/system/version` first. If Slicer is up but the WebServer isn't (server not started, or "Slicer API" disabled in settings), the connection succeeds but gives a 404 — distinct from "no Slicer at all".
+10. **Long ops need your own polling protocol.** Implement `start_job` → returns job_id → `get_job_status(job_id)` → `get_job_result(job_id)` in `AgentTools.py`, all over `/slicer/exec`. Don't try to make `/slicer/exec` itself non-blocking.
+
+---
+
+## 11. Quick reference — cheatsheet
+
+```bash
+# Liveness
+curl -s http://127.0.0.1:2016/slicer/system/version | jq .applicationName
+
+# Load a sample dataset
+curl -s 'http://127.0.0.1:2016/slicer/sampledata?name=MRHead'
+
+# List volumes
+curl -s http://127.0.0.1:2016/slicer/volumes | jq .
+
+# Save a volume to disk on the Slicer host
+curl -s 'http://127.0.0.1:2016/slicer/mrml/file?id=vtkMRMLScalarVolumeNode1&localfile=/tmp/x.nrrd&useCompression=true'
+
+# Load a file from disk into the scene as a typed node
+curl -X POST 'http://127.0.0.1:2016/slicer/mrml?localfile=/tmp/x.nrrd&filetype=VolumeFile'
+
+# Render the red slice at offset 12 mm
+curl -s 'http://127.0.0.1:2016/slicer/slice?view=red&offset=12&size=512' -o slice.png
+
+# Render the 3D view from the front (Anterior)
+curl -s 'http://127.0.0.1:2016/slicer/threeD?lookFromAxis=A' -o threeD.png
+
+# DICOMweb QIDO — list studies in Slicer's DB
+curl -s http://127.0.0.1:2016/dicom/studies | jq '.[].StudyInstanceUID'
+
+# Pull a study from Orthanc into Slicer
+curl -X POST http://127.0.0.1:2016/slicer/accessDICOMwebStudy \
+  -H 'Content-Type: application/json' \
+  -d '{"dicomWEBPrefix":"http://localhost:8042","dicomWEBStore":"dicom-web","studyUID":"1.2.840…","accessToken":""}'
+
+# Run Python in Slicer
+curl -X POST http://127.0.0.1:2016/slicer/exec --data \
+  "import slicer; \
+   __execResult = {'volumes': [n.GetID() for n in slicer.util.getNodesByClass('vtkMRMLScalarVolumeNode')]}"
+
+# Shutdown
+curl -X DELETE http://127.0.0.1:2016/slicer/system
+```
+
+---
+
+## 12. Source files of record (for going deeper)
+
+- Module entry & GUI: `Slicer/Modules/Scripted/WebServer/WebServer.py`
+- Slicer REST handler (the route table): `Slicer/Modules/Scripted/WebServer/WebServerLib/SlicerRequestHandler.py`
+- DICOMweb handler: `Slicer/Modules/Scripted/WebServer/WebServerLib/DICOMRequestHandler.py`
+- Static handler: `Slicer/Modules/Scripted/WebServer/WebServerLib/StaticPagesRequestHandler.py`
+- DICOMweb pull / DIMSE helpers: `Slicer/Modules/Scripted/DICOMLib/DICOMUtils.py`
+- Reference Python client: `lassoan/slicerio` → `slicerio/server.py`
+- User docs (master): `https://slicer.readthedocs.io/en/latest/user_guide/modules/webserver.html`
+- Original PR: `https://github.com/Slicer/Slicer/pull/5999` (helpful for design rationale)
+
+---
+
+*This report is a snapshot against Slicer 5.8.x `main`. The WebServer module is explicitly described by its maintainers as "experimental" — endpoint surface and JSON shapes can shift between releases. Pin a Slicer build for your production CLI/MCP, and add a one-shot `/slicer/system/version` log line to whatever audit trail you keep.*
