@@ -1,3 +1,5 @@
+# Local Config
+CLAUDE.local.md
 # Python-generated files
 __pycache__/
 *.py[oc]
