@@ -117,14 +117,19 @@ def _probe_power_tool_gating(config: AppConfig) -> CheckResult:
 
 
 def _probe_render(client: SlicerClient) -> CheckResult:
-    """GET /slicer/slice?size=8 — verify a non-empty PNG comes back."""
+    """GET /slicer/slice — verify a non-empty PNG with non-zero dimensions comes back.
+
+    Uses the same `validate_png` gate that real `render slice` does, so a green
+    doctor probe means the actual render commands will succeed too.
+    """
+    from slicer_cli.client._validators import validate_png
+
     try:
-        response = client.raw("GET", "/slicer/slice", params={"size": "8"})
+        response = client.raw("GET", "/slicer/slice", params={"size": "64"})
+        validate_png(response.content, endpoint="/slicer/slice")
     except SlicerError as error:
         return CheckResult("render", False, _short(error.message))
-    if response.status_code == 200 and response.content[:8].startswith(b"\x89PNG"):
-        return CheckResult("render", True, f"PNG returned ({len(response.content)} bytes)")
-    return CheckResult("render", False, f"HTTP {response.status_code}, not a PNG")
+    return CheckResult("render", True, f"PNG returned ({len(response.content)} bytes)")
 
 
 # ----------------------------------------------------------------- helpers

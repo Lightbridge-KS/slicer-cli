@@ -128,11 +128,19 @@ class SlicerHttpError(SlicerError):
 
 
 class SlicerBadResponseError(SlicerError):
-    def __init__(self, message: str, *, endpoint: str | None = None) -> None:
+    _DEFAULT_HINT = "The response did not match the expected schema. File a bug if reproducible."
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        endpoint: str | None = None,
+        hint: str | None = None,
+    ) -> None:
         super().__init__(
             ErrorCode.E_BAD_RESPONSE,
             message,
-            hint="The response did not match the expected schema. File a bug if reproducible.",
+            hint=hint if hint is not None else self._DEFAULT_HINT,
             endpoint=endpoint,
         )
 

@@ -161,6 +161,11 @@
 - [ ] `dicom pull` fallback hint surfaces on the known Slicer-side bug (surface-report §8.1)
 - [ ] Unit + integration tests
 
+### Cross-cutting
+
+- [ ] Update User Manual for AI Agent and Human at `docs/Slicer-CLI-UserManual.md` 
+- [ ] Update relevant AGENTS.md 
+
 ---
 
 ## Phase 3 — Markup + exec + gui
@@ -177,6 +182,11 @@
 - [ ] `gui layout fourup|oneup3d|... [--contents full|viewers]` (PUT `/slicer/gui`)
 - [ ] Unit tests including audit-log assertions
 - [ ] Integration tests
+
+### Cross-cutting
+
+- [ ] Update User Manual for AI Agent and Human at `docs/Slicer-CLI-UserManual.md` 
+- [ ] Update relevant AGENTS.md 
 
 ---
 

@@ -3,12 +3,24 @@
 from __future__ import annotations
 
 import json
+import struct
 
 import respx
 from httpx import Response
 from typer.testing import CliRunner
 
 from slicer_cli.cli.app import app
+
+
+def _make_valid_png(*, width: int = 64, height: int = 64, body_size: int = 1024) -> bytes:
+    """Synthesize a valid PNG header with non-zero IHDR dims and >= 256 byte body.
+
+    `validate_png` (used by the render probe) checks magic + size + IHDR dims —
+    so the doctor probe needs a fixture that passes all three.
+    """
+    magic = b"\x89PNG\r\n\x1a\n"
+    ihdr = b"\x00\x00\x00\x0dIHDR" + struct.pack(">II", width, height) + b"\x08\x02\x00\x00\x00"
+    return magic + ihdr + b"\x00" * max(body_size - len(magic) - len(ihdr) - 4, 0) + b"\x00" * 4
 
 
 def _all_endpoints_up() -> respx.MockRouter:
@@ -26,7 +38,7 @@ def _all_endpoints_up() -> respx.MockRouter:
     mock.get("/slicer/slice").mock(
         return_value=Response(
             200,
-            content=b"\x89PNG\r\n\x1a\nfake-png-bytes",
+            content=_make_valid_png(),
             headers={"content-type": "image/png"},
         )
     )
@@ -70,7 +82,7 @@ def test_doctor_reports_partial_failure(runner: CliRunner) -> None:
         mock.get("/slicer/slice").mock(
             return_value=Response(
                 200,
-                content=b"\x89PNG\r\n\x1a\nfake",
+                content=_make_valid_png(),
                 headers={"content-type": "image/png"},
             )
         )
