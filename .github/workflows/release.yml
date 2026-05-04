@@ -1,0 +1,121 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to release (e.g. v0.1.0)."
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build & draft release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Resolve tag
+        id: tag
+        env:
+          DISPATCH_TAG: ${{ inputs.tag }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            tag="$DISPATCH_TAG"
+          else
+            tag="$GITHUB_REF_NAME"
+          fi
+          # Defence-in-depth: refuse anything that's not a SemVer-ish v-tag.
+          if ! printf '%s' "$tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9.+-]+)?$'; then
+            echo "::error::tag '$tag' does not look like a SemVer v-tag (expected vX.Y.Z[-pre])"
+            exit 1
+          fi
+          version="${tag#v}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "resolved tag=$tag, version=$version"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.tag.outputs.tag }}
+          fetch-depth: 0
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install project
+        run: uv sync --frozen
+
+      - name: Verify tag matches pyproject version
+        env:
+          EXPECTED_VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          set -euo pipefail
+          actual=$(uv run python -c \
+            "import tomllib, pathlib; \
+             print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")
+          if [ "$actual" != "$EXPECTED_VERSION" ]; then
+            echo "::error::tag version ($EXPECTED_VERSION) != pyproject version ($actual)"
+            exit 1
+          fi
+          echo "version match: $actual"
+
+      - name: Re-run gates
+        run: |
+          uv run ruff check
+          uv run ruff format --check
+          uv run mypy
+          uv run pytest -m "not integration"
+
+      - name: Build wheel and sdist
+        run: uv build
+
+      - name: Build skill bundle
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          tar -czf "dist/slicer-cli-skill-${TAG}.tar.gz" \
+            -C .agents/skills slicer-cli
+          ls -la dist/
+
+      - name: Generate SHA256SUMS.txt
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum -- *.whl *.tar.gz > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Extract release notes from CHANGELOG.md
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          set -euo pipefail
+          uv run python scripts/extract_changelog.py "$VERSION" > release_notes.md
+          echo "----- release notes -----"
+          cat release_notes.md
+
+      - name: Create draft GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh release create "$TAG" \
+            --draft \
+            --title "$TAG" \
+            --notes-file release_notes.md \
+            dist/*.whl \
+            dist/*.tar.gz \
+            dist/SHA256SUMS.txt

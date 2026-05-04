@@ -39,32 +39,56 @@ slicer-cli --json render slice \
 
 ## Installation
 
-For now (alpha; not yet on PyPI), install from source:
+The project is not on PyPI; install directly from GitHub.
+
+### Recommended: `uv tool install` from a GitHub Release
+
+Once a release exists, install the wheel asset directly:
 
 ```bash
-git clone https://github.com/Lightbridge-KS/slicer-cli.git
-cd slicer-cli
-uv sync
+uv tool install \
+  https://github.com/Lightbridge-KS/slicer-cli/releases/download/v0.1.0/slicer_cli-0.1.0-py3-none-any.whl
 ```
 
-Verify against your running Slicer:
+Or install straight from a tagged commit (works without a release artifact):
 
 ```bash
-uv run slicer-cli status
+uv tool install git+https://github.com/Lightbridge-KS/slicer-cli.git@v0.1.0
+```
+
+For a one-shot run without a persistent install:
+
+```bash
+uvx --from git+https://github.com/Lightbridge-KS/slicer-cli.git slicer-cli status
+```
+
+After install, two console scripts are on `PATH`: `slicer-cli` and the
+short alias `slcli`. Verify against your running Slicer:
+
+```bash
+slicer-cli status
 # ✓ Slicer is up at http://127.0.0.1:2016
 #   applicationName     Slicer
 #   applicationVersion  5.11.0-...
 ```
 
-Once published, the planned distribution path is:
+To upgrade later:
 
 ```bash
-uv tool install slicer-cli      # persistent
-uvx slicer-cli status           # ephemeral
+uv tool upgrade slicer-cli
 ```
 
-The CLI binary registers two console entry points: `slicer-cli` and the
-short alias `slcli`.
+### Alternative: clone and install from source (development)
+
+```bash
+git clone https://github.com/Lightbridge-KS/slicer-cli.git
+cd slicer-cli
+uv sync
+uv run slicer-cli status
+```
+
+Use this path if you want to hack on the CLI itself or run the unit
+test suite (`uv run pytest -m "not integration"`).
 
 ## Basic CLI usage
 
@@ -152,6 +176,7 @@ PNG to disk — branching on `error.code` if anything fails.
 | [`docs/3d-slicer-webserver-surface-report.md`](./docs/3d-slicer-webserver-surface-report.md) | maintainers | authoritative reference for Slicer's HTTP surface (incl. known bugs) |
 | [`AGENTS.md`](./AGENTS.md) | AI coding agents | repo-wide project conventions |
 | [`.agents/skills/slicer-cli/SKILL.md`](./.agents/skills/slicer-cli/SKILL.md) | AI coding agents | when/how to invoke the CLI |
+| [`CHANGELOG.md`](./CHANGELOG.md) | everyone | release notes per version (Keep a Changelog) |
 
 ## Status
 
