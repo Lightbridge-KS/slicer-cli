@@ -1,8 +1,9 @@
 """Helpers for not-yet-implemented commands.
 
-Phase 0 ships the full command surface visible via --help, but most groups
-return E_NOT_IMPLEMENTED with a phase pointer. This avoids the agent
-discovering missing groups (and lets us tick them on as phases land).
+Lets a command appear in `--help` listings while still failing fast at
+runtime with a clear `E_NOT_IMPLEMENTED` and a roadmap pointer. The
+roadmap pointer is free-form text passed by the caller — see callers
+for current conventions.
 """
 
 from __future__ import annotations

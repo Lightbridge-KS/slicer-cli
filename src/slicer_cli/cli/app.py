@@ -36,9 +36,9 @@ app = typer.Typer(
     add_completion=False,
 )
 
-# Resource sub-apps (one per group from PRD §5.2). The user-facing surface is flat:
-# `slicer-cli scene ...`, `slicer-cli volume ...` — the cli/mrml/ folder is just
-# code organisation, not part of the command path.
+# Resource sub-apps. The user-facing surface is flat:
+# `slicer-cli scene ...`, `slicer-cli volume ...` — each command file under
+# `cli/` registers one Typer app here.
 app.add_typer(system_cli.app, name="system")
 app.add_typer(scene_cli.app, name="scene")
 app.add_typer(node_cli.app, name="node")
@@ -113,7 +113,7 @@ def status(ctx: typer.Context) -> None:
 
 @app.command("doctor")
 def doctor(ctx: typer.Context) -> None:
-    """Run a battery of capability probes (Phase 1)."""
+    """Run a battery of capability probes."""
     doctor_cli.doctor_command(ctx)
 
 

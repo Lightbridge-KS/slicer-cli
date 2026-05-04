@@ -1,4 +1,4 @@
-"""Output formatters — JSON envelope (PRD §6.2/§6.3) and rich pretty mode.
+"""Output formatters — JSON envelope and rich pretty mode.
 
 CLI commands hand a *payload dict* and a *mode* to render_success/render_error;
 they never call print() directly. This keeps the JSON contract stable and

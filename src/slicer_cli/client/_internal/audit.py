@@ -1,13 +1,13 @@
 """Audit log writer for every `/slicer/exec` POST.
 
-Per PRD §8.3, every successful `/slicer/exec` invocation lands one line in
+Every successful `/slicer/exec` invocation lands one line in
 `~/.local/state/slicer-cli/exec.log` (configurable via `config.exec.audit_log`).
 The line format is intentionally one-line-per-call, append-only, easy to grep,
 and keyed by a SHA-256 of the source so two identical scripts collide.
 
-Format (mirrors PRD §8.3 verbatim):
+Line format:
 
-    <iso8601-Z>  rev=<rev>  url=<url>  hash=sha256:<hex>  preview="<first 200 chars>"
+    <iso8601-Z>  rev=<rev>  url=<url>  hash=sha256:<hex>  preview="<first 200 chars>"  op=<label>
 
 Where `rev` is the first 7 chars of `git rev-parse HEAD` if the working
 tree is a git checkout, else the literal `unknown` (e.g. when slicer-cli
@@ -40,13 +40,12 @@ class AuditLogger:
         self.path = path
 
     def log(self, source: bytes, *, url: str, op_label: str) -> None:
-        """Append one PRD-§8.3-shaped line for this exec invocation.
+        """Append one canonically-shaped line for this exec invocation.
 
-        `op_label` (e.g. "mrml.save_scene", "cli.exec") is currently informational
-        only — it isn't part of the canonical line format but may be used by
-        future log-parsing tooling. We compute hash and preview from the raw
-        source bytes so two identical scripts have identical hashes regardless
-        of caller.
+        `op_label` (e.g. "mrml.save_scene", "cli.exec") is appended to the
+        line so future log-parsing tooling can group entries by caller.
+        We compute hash and preview from the raw source bytes so two
+        identical scripts have identical hashes regardless of caller.
         """
         line = self._format_line(source=source, url=url, op_label=op_label)
         try:
@@ -64,7 +63,7 @@ class AuditLogger:
         digest = hashlib.sha256(source).hexdigest()
         preview = _make_preview(source)
         rev = _git_rev()
-        # op_label is appended at the end so the canonical PRD §8.3 prefix
+        # op_label is appended at the end so the canonical prefix
         # (`<iso>  rev=  url=  hash=  preview=`) is preserved for any tool
         # that grep/awks the early columns.
         return (

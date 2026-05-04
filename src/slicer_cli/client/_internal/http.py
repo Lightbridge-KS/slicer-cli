@@ -7,7 +7,7 @@ the protected helpers (`_request`, `_get_json`, `_parse_json`, `_validate`).
 
 Sync (not async) is intentional: Slicer's WebServer is single-threaded inside
 the Qt event loop, so concurrent requests serialize anyway. Sync also has a
-much simpler test story with respx (PRD §11).
+much simpler test story with `respx`.
 """
 
 from __future__ import annotations
@@ -106,10 +106,10 @@ class _HttpClient:
         side-effect; if Slicer crashes mid-call, we still know what was
         attempted.
 
-        All four `/slicer/exec` callers (`mrml.save_scene`,
-        `dicom.pull_from_dicomweb`, `markup.add_line`, formal exec) MUST
-        route through this method so the audit log is the single insertion
-        point per PRD section 8.3.
+        Every `/slicer/exec` caller (`mrml.save_scene`,
+        `dicom.pull_from_dicomweb`, `markup.add_line`, `run_python`) MUST
+        route through this method so audit logging has a single insertion
+        point.
         """
         if self._audit_logger is not None:
             self._audit_logger.log(source, url=self.url, op_label=op_label)

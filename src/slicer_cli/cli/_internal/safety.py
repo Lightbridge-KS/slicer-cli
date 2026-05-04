@@ -1,7 +1,7 @@
 """Safety guards shared across destructive CLI commands.
 
 These helpers raise the canonical `SlicerError` subclasses so the CLI's top-level
-error handler maps them to the right exit code (PRD §6.5):
+error handler maps them to the right exit code (see `errors.exit_code_for`):
 - `SlicerDestructiveError`  → exit 6
 - `SlicerEmptySelectorError` → exit 6
 

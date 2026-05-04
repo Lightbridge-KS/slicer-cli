@@ -13,8 +13,7 @@ Models now live next to their domain:
 
 This shim exists so existing call sites (`from slicer_cli.client.models import
 NodeRef`) keep working unchanged. New code is encouraged to import from the
-domain module directly for clearer intent. The bundle-vs-flat threshold rule
-is documented in `src/slicer_cli/AGENTS.md`.
+domain module directly for clearer intent.
 """
 
 from __future__ import annotations

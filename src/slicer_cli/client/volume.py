@@ -4,8 +4,7 @@ Note: volume *load* uses POST /slicer/mrml?filetype=VolumeFile, which lives
 in `MrmlMixin.load_file` because the entry point is mrml-shaped. This file
 covers only the dedicated volume endpoints.
 
-Flat domain (no sub-bundle): the response model `Volume` is defined inline
-below. See `src/slicer_cli/AGENTS.md` for the bundle-vs-flat threshold.
+Flat domain: the response model `Volume` is defined inline below.
 """
 
 from __future__ import annotations

@@ -1,13 +1,17 @@
 """Layered configuration loader.
 
-Precedence (highest first), per PRD §7.1:
+Precedence (highest first):
   1. CLI flags (handled in cli/app.py — passed via overrides)
   2. Environment variables (SLICER_URL, SLICER_TIMEOUT, SLICER_EXEC_*)
   3. Project-local .slicer-cli.toml (cwd or first ancestor)
   4. User config ~/.config/slicer-cli/config.toml
   5. Built-in defaults below
 
-Built-in default for `exec.enabled` is True (YOLO mode, PRD §14.2 Q6).
+`exec.enabled` defaults to True so `slicer-cli exec` works out of the box;
+operators who want to lock arbitrary Python execution down should set
+`exec.enabled = false` in user or project config (or via
+`SLICER_EXEC_ENABLED=false`). The `--i-understand-the-risk` flag overrides
+the gate per-invocation.
 """
 
 from __future__ import annotations
@@ -43,7 +47,7 @@ class OutputConfig(BaseModel):
 class ExecConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    enabled: bool = True  # YOLO default — see PRD §14.2 Q6
+    enabled: bool = True  # permissive default; gate with `enabled = false` to lock down
     audit_log: str = "~/.local/state/slicer-cli/exec.log"
 
 
@@ -126,7 +130,7 @@ def _read_toml(path: Path | None) -> dict[str, Any]:
 
 
 def _from_env(env: dict[str, str]) -> dict[str, Any]:
-    """Map a small, explicit set of env vars to config keys (PRD §P9)."""
+    """Map a small, explicit set of env vars to config keys."""
     out: dict[str, Any] = {}
     if (url := env.get("SLICER_URL")) is not None:
         out.setdefault("server", {})["url"] = url
