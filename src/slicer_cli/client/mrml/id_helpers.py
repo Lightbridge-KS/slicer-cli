@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 
-from slicer_cli.client.models import NodeRef
+from slicer_cli.client.mrml.models import NodeRef
 
 # Node ids look like "vtkMRMLClassNameN" or "vtkMRMLClassNameSomeSuffix".
 # Non-greedy capture stops at the *first* "Node" token. Verified against live

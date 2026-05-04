@@ -3,16 +3,30 @@
 Note: volume *load* uses POST /slicer/mrml?filetype=VolumeFile, which lives
 in `MrmlMixin.load_file` because the entry point is mrml-shaped. This file
 covers only the dedicated volume endpoints.
+
+Flat domain (no sub-bundle): the response model `Volume` is defined inline
+below. See `src/slicer_cli/AGENTS.md` for the bundle-vs-flat threshold.
 """
 
 from __future__ import annotations
 
 from slicer_cli.client._internal.http import _HttpClient
+from slicer_cli.client._internal.models_base import _SlicerModel
 from slicer_cli.client.errors import (
     SlicerBadInputError,
     SlicerBadResponseError,
 )
-from slicer_cli.client.models import Volume
+
+
+class Volume(_SlicerModel):
+    """Element of GET /slicer/volumes — confirmed live: `{name, id}` only.
+
+    Note that Slicer does not return a `class` field on this endpoint; callers
+    that need class info should derive it from `id` via `mrml.id_helpers.id_to_class`.
+    """
+
+    id: str
+    name: str
 
 
 class VolumeMixin(_HttpClient):
