@@ -242,10 +242,10 @@
 
 **Goal:** A single skill at `.agents/skills/slicer-cli/SKILL.md` that triggers AI Coding Agents (e.g., Claude Code, Codex) to use the CLI on Slicer-related prompts.
 
-- [ ] `.agents/skills/slicer-cli/SKILL.md` written per PRD §12 format
-- [ ] Frontmatter `description:` field carefully tuned for Claude trigger matching
-- [ ] Body: when-to-invoke, safety rules (no `scene clear` / `system shutdown` / `exec` without explicit user instruction), JSON-mode reminder, 3-5 worked examples
-- [ ] Cross-links to `slicer-cli api routes --json` and `slicer-cli doctor --json`
+- [x] `.agents/skills/slicer-cli/SKILL.md` written per PRD §12 format
+- [x] Frontmatter `description:` field carefully tuned for Claude trigger matching
+- [x] Body: when-to-invoke, safety rules (no `scene clear` / `system shutdown` / `exec` without explicit user instruction), JSON-mode reminder, 3-5 worked examples
+- [x] Cross-links to `slicer-cli api routes --json` and `slicer-cli doctor --json`
 - [ ] Manual smoke test: prompt Claude with "load MRHead in Slicer and render an axial slice at offset 12 mm" — verify it auto-invokes the skill and runs the right commands
 
 ---
