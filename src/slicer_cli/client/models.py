@@ -7,6 +7,8 @@ tolerates unknown fields — schema drift is a documented risk (PRD §14.1 R1).
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -61,3 +63,44 @@ class DeleteResult(_SlicerModel):
     """Response of DELETE /slicer/mrml (and friends)."""
 
     success: bool
+
+
+# --------------------------------------------------------------- DICOMweb (Phase 2)
+
+
+class StudyRef(_SlicerModel):
+    """One row of QIDO `GET /dicom/studies` — common DICOM tags flattened.
+
+    The full DICOM JSON Model blob is preserved in `raw` for power-tool
+    inspection (e.g. `dicom meta` agent workflows that need exotic tags).
+    """
+
+    study_uid: str
+    patient_id: str | None = None
+    patient_name: str | None = None
+    study_date: str | None = None  # DICOM "YYYYMMDD"
+    study_description: str | None = None
+    accession_number: str | None = None
+    modalities_in_study: list[str] = Field(default_factory=list)
+    raw: dict[str, Any]
+
+
+class SeriesRef(_SlicerModel):
+    """One row of QIDO `GET /dicom/studies/{studyUID}/series`."""
+
+    series_uid: str
+    study_uid: str
+    modality: str | None = None
+    series_number: int | None = None
+    series_description: str | None = None
+    raw: dict[str, Any]
+
+
+class InstanceRef(_SlicerModel):
+    """One row of QIDO `GET /dicom/studies/.../series/.../instances`."""
+
+    sop_uid: str
+    series_uid: str
+    study_uid: str
+    instance_number: int | None = None
+    raw: dict[str, Any]

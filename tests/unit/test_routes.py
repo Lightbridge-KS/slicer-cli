@@ -70,3 +70,25 @@ def test_route_dataclass_is_frozen() -> None:
     except (AttributeError, TypeError):
         return
     raise AssertionError("Route should be frozen")
+
+
+def test_access_dicomweb_study_is_flagged_with_bug_note() -> None:
+    """The known Slicer-side bug (surface report §8.1) must be exposed via `api routes`."""
+    route = find_route("POST", "/slicer/accessDICOMwebStudy")
+    assert route is not None
+    assert route.note is not None
+    assert "exec" in route.note.lower()  # mentions the workaround
+
+
+def test_phase2_endpoints_present() -> None:
+    paths = {(r.method, r.path) for r in ROUTES}
+    must_have = {
+        ("GET", "/slicer/slice"),
+        ("GET", "/slicer/threeD"),
+        ("GET", "/slicer/screenshot"),
+        ("GET", "/slicer/threeDGraphics"),
+        ("GET", "/dicom/studies"),
+        ("POST", "/slicer/accessDICOMwebStudy"),
+    }
+    missing = must_have - paths
+    assert not missing, f"Missing Phase-2 routes: {missing}"

@@ -31,6 +31,7 @@ class Route:
     destructive: bool
     stub: bool
     phase: str | None
+    note: str | None = None
 
 
 # --------------------------------------------------------------------- /slicer/*
@@ -276,6 +277,10 @@ _POWER: tuple[Route, ...] = (
         False,
         False,
         "Phase 2",
+        note=(
+            "bypassed in CLI: handler has a Python TypeError bug "
+            "(surface report §8.1). `dicom pull` uses /slicer/exec instead."
+        ),
     ),
 )
 

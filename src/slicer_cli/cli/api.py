@@ -59,6 +59,7 @@ def routes_command(
                 "destructive": r.destructive,
                 "stub": r.stub,
                 "phase": r.phase,
+                "note": r.note,
             }
         )
 

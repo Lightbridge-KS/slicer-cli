@@ -1,5 +1,10 @@
 # Local Config
 CLAUDE.local.md
+
+# Integration-test fixture (real DICOM UIDs are PHI — keep out of git).
+# Template lives at tests/integration/.env.example.
+tests/integration/.env
+
 # Python-generated files
 __pycache__/
 *.py[oc]

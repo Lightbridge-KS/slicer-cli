@@ -104,6 +104,18 @@ def _render_pretty_payload(console: Console, payload: dict[str, Any], renderer: 
     if renderer == "doctor":
         _render_doctor(console, payload.get("checks", []))
         return
+    if renderer == "studies":
+        _render_studies(console, payload.get("studies", []))
+        return
+    if renderer == "series":
+        _render_series(console, payload.get("series", []))
+        return
+    if renderer == "instances":
+        _render_instances(console, payload.get("instances", []))
+        return
+    if renderer == "dicom-meta":
+        _render_dicom_meta(console, payload)
+        return
 
     for key, value in payload.items():
         console.print(f"[bold]{key}[/]: {value}")
@@ -216,6 +228,80 @@ def _render_doctor(console: Console, checks: list[dict[str, Any]]) -> None:
         status = "[green]OK[/]" if ok else "[red]FAIL[/]"
         table.add_row(str(c.get("name", "")), status, str(c.get("detail", "")))
     console.print(table)
+
+
+def _render_studies(console: Console, rows: list[dict[str, Any]]) -> None:
+    if not rows:
+        console.print("[dim](no studies in Slicer's DICOM DB)[/]")
+        return
+    table = Table(show_header=True, header_style="bold")
+    table.add_column("PatientName")
+    table.add_column("PatientID", style="dim")
+    table.add_column("StudyUID", style="cyan", no_wrap=False)
+    table.add_column("Date", style="dim")
+    table.add_column("Description")
+    table.add_column("Accession", style="dim")
+    table.add_column("Modalities")
+    for row in rows:
+        modalities = ", ".join(str(m) for m in row.get("modalities_in_study") or [])
+        table.add_row(
+            str(row.get("patient_name") or "—"),
+            str(row.get("patient_id") or "—"),
+            str(row.get("study_uid") or ""),
+            str(row.get("study_date") or "—"),
+            str(row.get("study_description") or "—"),
+            str(row.get("accession_number") or "—"),
+            modalities or "—",
+        )
+    console.print(table)
+
+
+def _render_series(console: Console, rows: list[dict[str, Any]]) -> None:
+    if not rows:
+        console.print("[dim](no series)[/]")
+        return
+    table = Table(show_header=True, header_style="bold")
+    table.add_column("SeriesUID", style="cyan")
+    table.add_column("Modality", style="dim")
+    table.add_column("#", justify="right")
+    table.add_column("Description")
+    for row in rows:
+        table.add_row(
+            str(row.get("series_uid") or ""),
+            str(row.get("modality") or "—"),
+            str(row.get("series_number") if row.get("series_number") is not None else "—"),
+            str(row.get("series_description") or "—"),
+        )
+    console.print(table)
+
+
+def _render_instances(console: Console, rows: list[dict[str, Any]]) -> None:
+    if not rows:
+        console.print("[dim](no instances)[/]")
+        return
+    table = Table(show_header=True, header_style="bold")
+    table.add_column("SOPUID", style="cyan")
+    table.add_column("InstanceNumber", justify="right")
+    for row in rows:
+        table.add_row(
+            str(row.get("sop_uid") or ""),
+            str(row.get("instance_number") if row.get("instance_number") is not None else "—"),
+        )
+    console.print(table)
+
+
+def _render_dicom_meta(console: Console, payload: dict[str, Any]) -> None:
+    """`dicom meta` returns DICOM JSON Model — verbose by design.
+
+    Pretty mode just prints a header + tag count and tells the user how to
+    inspect it (jq for agents, --json for full dump). The full blob is
+    always available in --json mode.
+    """
+    level = str(payload.get("level", "?"))
+    meta = payload.get("meta") or []
+    n_tags = sum(len(entry) if isinstance(entry, dict) else 0 for entry in meta)
+    console.print(f"[bold]{level} metadata[/] — {len(meta)} entries, {n_tags} tags total")
+    console.print("[dim]Use --json for the full DICOM JSON Model blob.[/]")
 
 
 def _render_node_properties(console: Console, node: dict[str, Any]) -> None:

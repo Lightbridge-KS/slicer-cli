@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from slicer_cli.client._exec import build_exec_payload
 from slicer_cli.client._http import _HttpClient
 from slicer_cli.client._id_helpers import attach_class_to_refs
 from slicer_cli.client.errors import (
@@ -152,20 +153,21 @@ class MrmlMixin(_HttpClient):
     def save_scene(self, path: str) -> dict[str, Any]:
         """Save the entire MRML scene to `path`.
 
-        Slicer's WebServer has no native "save scene" endpoint, so we use the
-        Python power tool (`POST /slicer/exec`) with `slicer.util.saveScene`.
-        Per locked Q-A: implement now via templated payload; Phase 3 will
-        migrate this into the proper `exec` audit-log machinery.
+        Slicer's WebServer has no native "save scene" endpoint, so we route
+        through `client._exec.build_exec_payload` to template a small
+        `slicer.util.saveScene` call. Phase 3 will gate this through the
+        formal `exec` audit-log machinery (PRD §8.3) — the central
+        `build_exec_payload` helper is the single insertion point.
         """
         if not path.strip():
             raise SlicerBadInputError("path must not be empty")
         endpoint = "/slicer/exec"
-        # Use repr() to safely embed the path in Python source (handles quotes/escapes).
-        body = (
-            f"import slicer\n"
-            f"saved = slicer.util.saveScene({path!r})\n"
-            f"__execResult = {{'saved': bool(saved), 'path': {path!r}}}\n"
-        ).encode()
+        template = (
+            "import slicer\n"
+            "saved = slicer.util.saveScene({path})\n"
+            "__execResult = {{'saved': bool(saved), 'path': {path}}}\n"
+        )
+        body = build_exec_payload(template, path=path)
         response = self._request("POST", endpoint, content=body)
         data = self._parse_json(response, endpoint=endpoint)
         if not isinstance(data, dict):

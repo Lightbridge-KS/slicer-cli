@@ -94,6 +94,7 @@ ignore_missing_imports = true
 testpaths = ["tests"]
 markers = [
     "integration: requires a running 3D Slicer with WebServer enabled (env SLICER_INTEGRATION=1)",
+    "requires_orthanc: requires a local Orthanc with DICOMweb plugin at http://localhost:8042",
 ]
 addopts = [
     "-ra",
