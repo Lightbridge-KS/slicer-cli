@@ -15,19 +15,17 @@ from slicer_cli.cli import (
     doctor as doctor_cli,
     exec_ as exec_cli,
     gui as gui_cli,
+    markup as markup_cli,
+    node as node_cli,
     render as render_cli,
+    sample as sample_cli,
+    scene as scene_cli,
     status as status_cli,
     system as system_cli,
+    volume as volume_cli,
 )
 from slicer_cli.cli._internal.argv import hoist_global_flags
 from slicer_cli.cli._internal.context import build_context
-from slicer_cli.cli.mrml import (
-    markup as markup_cli,
-    node as node_cli,
-    sample as sample_cli,
-    scene as scene_cli,
-    volume as volume_cli,
-)
 from slicer_cli.cli.output import render_error
 from slicer_cli.client.errors import SlicerError, exit_code_for
 
