@@ -28,8 +28,8 @@ from slicer_cli.cli.mrml import (
     scene as scene_cli,
     volume as volume_cli,
 )
+from slicer_cli.cli.output import render_error
 from slicer_cli.client.errors import SlicerError, exit_code_for
-from slicer_cli.output import render_error
 
 app = typer.Typer(
     name="slicer-cli",

@@ -10,7 +10,7 @@ from slicer_cli.client.models import SystemVersion
 
 
 class SystemMixin(_HttpClient):
-    """`/slicer/system/version` (Phase 0) and `/slicer/system` shutdown (Phase 1)."""
+    """`/slicer/system/version` and `/slicer/system` shutdown."""
 
     def system_version(self) -> SystemVersion:
         """GET /slicer/system/version — the canonical liveness probe."""

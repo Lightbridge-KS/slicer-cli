@@ -7,9 +7,9 @@ import json
 import typer
 
 from slicer_cli.cli._internal.context import CliContext
+from slicer_cli.cli.output import render_error, render_success
 from slicer_cli.client.errors import SlicerBadInputError, exit_code_for
 from slicer_cli.config import USER_CONFIG_PATH, config_paths
-from slicer_cli.output import render_error, render_success
 
 app = typer.Typer(no_args_is_help=True, help="Inspect merged configuration.")
 

@@ -13,10 +13,10 @@ from dataclasses import asdict, dataclass
 import typer
 
 from slicer_cli.cli._internal.context import CliContext
+from slicer_cli.cli.output import render_success
 from slicer_cli.client.base import SlicerClient
 from slicer_cli.client.errors import SlicerError
 from slicer_cli.config import AppConfig
-from slicer_cli.output import render_success
 
 
 @dataclass(frozen=True, slots=True)

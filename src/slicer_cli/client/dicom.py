@@ -33,7 +33,7 @@ from slicer_cli.client._internal.dicom_tags import (
     dicom_tag_value,
     dicom_value_list,
 )
-from slicer_cli.client._internal.exec import build_exec_payload
+from slicer_cli.client._internal.exec_template import build_exec_payload
 from slicer_cli.client._internal.http import _HttpClient
 from slicer_cli.client.errors import SlicerBadInputError, SlicerBadResponseError
 from slicer_cli.client.models import InstanceRef, SeriesRef, StudyRef

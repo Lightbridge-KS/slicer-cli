@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from slicer_cli.client.models._base import _SlicerModel
+from slicer_cli.client._internal.models_base import _SlicerModel
 
 
 class Volume(_SlicerModel):

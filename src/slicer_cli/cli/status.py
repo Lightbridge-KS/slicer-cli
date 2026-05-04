@@ -5,8 +5,8 @@ from __future__ import annotations
 import typer
 
 from slicer_cli.cli._internal.context import CliContext
+from slicer_cli.cli.output import render_error, render_success
 from slicer_cli.client.errors import SlicerError, exit_code_for
-from slicer_cli.output import render_error, render_success
 
 
 def status_command(ctx: typer.Context) -> None:

@@ -10,7 +10,7 @@ documented risk (PRD §14.1 R1).
 
 from __future__ import annotations
 
-from slicer_cli.client.models._base import _SlicerModel
+from slicer_cli.client._internal.models_base import _SlicerModel
 from slicer_cli.client.models.dicom import InstanceRef, SeriesRef, StudyRef
 from slicer_cli.client.models.markup import (
     FiducialNode,

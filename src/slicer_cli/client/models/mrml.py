@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pydantic import Field
 
-from slicer_cli.client.models._base import _SlicerModel
+from slicer_cli.client._internal.models_base import _SlicerModel
 
 
 class NodeRef(_SlicerModel):
