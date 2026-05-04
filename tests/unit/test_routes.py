@@ -14,7 +14,8 @@ def test_routes_is_nonempty() -> None:
     assert len(ROUTES) >= 30
 
 
-def test_phase1_endpoints_present() -> None:
+def test_core_endpoints_present() -> None:
+    """System + MRML + sample/volume — the read/write core."""
     paths = {(r.method, r.path) for r in ROUTES}
     must_have = {
         ("GET", "/slicer/system/version"),
@@ -30,7 +31,7 @@ def test_phase1_endpoints_present() -> None:
         ("GET", "/slicer/sampledata"),
     }
     missing = must_have - paths
-    assert not missing, f"Missing Phase-1 routes: {missing}"
+    assert not missing, f"Missing core routes: {missing}"
 
 
 def test_destructive_routes_flagged() -> None:
@@ -80,7 +81,8 @@ def test_access_dicomweb_study_is_flagged_with_bug_note() -> None:
     assert "exec" in route.note.lower()  # mentions the workaround
 
 
-def test_phase2_endpoints_present() -> None:
+def test_render_and_dicom_endpoints_present() -> None:
+    """Render + DICOMweb — second-tier capabilities."""
     paths = {(r.method, r.path) for r in ROUTES}
     must_have = {
         ("GET", "/slicer/slice"),
@@ -91,4 +93,4 @@ def test_phase2_endpoints_present() -> None:
         ("POST", "/slicer/accessDICOMwebStudy"),
     }
     missing = must_have - paths
-    assert not missing, f"Missing Phase-2 routes: {missing}"
+    assert not missing, f"Missing render/dicom routes: {missing}"

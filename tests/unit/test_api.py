@@ -46,14 +46,14 @@ def test_api_routes_destructive_only(runner: CliRunner) -> None:
     assert all(r["destructive"] for r in body["routes"])
 
 
-def test_api_routes_phase_filter(runner: CliRunner) -> None:
+def test_api_routes_category_filter(runner: CliRunner) -> None:
     with respx.mock(base_url="http://127.0.0.1:2016", assert_all_called=False):
-        result = runner.invoke(app, ["--json", "api", "routes", "--phase", "Phase 1"])
+        result = runner.invoke(app, ["--json", "api", "routes", "--category", "mrml"])
 
     assert result.exit_code == 0, result.stderr
     body = json.loads(result.stdout)
     assert len(body["routes"]) >= 1
-    assert all(r["phase"] == "Phase 1" for r in body["routes"])
+    assert all(r["category"] == "mrml" for r in body["routes"])
 
 
 # ----------------------------------------------------------------- api raw
