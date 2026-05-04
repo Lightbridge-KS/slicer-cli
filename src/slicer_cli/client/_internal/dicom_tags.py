@@ -9,8 +9,8 @@ DICOM JSON Model (PS3.18 §F) shapes every attribute as
   - Empty / absent:                   tag missing OR `Value` missing OR `[]`
 
 The extraction helpers normalize all these into Pythonic `str | int | None`.
-Lives next to `models.py` (NOT inside the `dicom` mixin) so `output.py` can
-import it for pretty-rendering without crossing the cli → client boundary.
+Kept under `client/_internal/` (NOT inside the `dicom` mixin) so `output.py`
+can import it for pretty-rendering without crossing the cli → client boundary.
 """
 
 from __future__ import annotations

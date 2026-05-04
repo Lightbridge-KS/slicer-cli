@@ -10,8 +10,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from slicer_cli.client._http import _HttpClient
-from slicer_cli.client._validators import validate_binary, validate_png
+from slicer_cli.client._internal.http import _HttpClient
+from slicer_cli.client._internal.validators import validate_binary, validate_png
 
 _VALID_VIEWS: frozenset[str] = frozenset({"red", "yellow", "green"})
 _VALID_ORIENTATIONS: frozenset[str] = frozenset({"axial", "sagittal", "coronal"})

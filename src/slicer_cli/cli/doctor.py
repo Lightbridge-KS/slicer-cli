@@ -122,7 +122,7 @@ def _probe_render(client: SlicerClient) -> CheckResult:
     Uses the same `validate_png` gate that real `render slice` does, so a green
     doctor probe means the actual render commands will succeed too.
     """
-    from slicer_cli.client._validators import validate_png
+    from slicer_cli.client._internal.validators import validate_png
 
     try:
         response = client.raw("GET", "/slicer/slice", params={"size": "64"})

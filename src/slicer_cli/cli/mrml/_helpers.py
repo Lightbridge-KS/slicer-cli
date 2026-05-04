@@ -13,7 +13,7 @@ from rich.table import Table
 
 # Re-export so `cli/mrml/*.py` modules have a single import point for
 # the helpers they need, without reaching across into `client/_id_helpers`.
-from slicer_cli.client._id_helpers import (
+from slicer_cli.client._internal.id_helpers import (
     attach_class_to_refs as attach_class_to_refs,
     id_to_class as id_to_class,
 )

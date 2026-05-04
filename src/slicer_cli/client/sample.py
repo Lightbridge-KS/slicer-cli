@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from slicer_cli.client._http import _HttpClient
+from slicer_cli.client._internal.http import _HttpClient
 from slicer_cli.client.errors import SlicerBadInputError
 
 
