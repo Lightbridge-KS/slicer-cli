@@ -61,7 +61,7 @@ def export_command(
     out: str = typer.Option(
         ...,
         "--out",
-        help="Output path or '-' for stdout (required — locked Q-D).",
+        help="Output path; pass '-' to stream to stdout. Required (NRRD bytes are binary).",
     ),
 ) -> None:
     """Stream a volume as NRRD bytes to file or stdout."""

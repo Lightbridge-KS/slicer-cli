@@ -88,8 +88,8 @@ def save_command(
     """Save the entire scene to disk.
 
     Implementation note: Slicer has no native HTTP "save scene" endpoint, so
-    we send a templated payload to /slicer/exec calling slicer.util.saveScene
-    (locked Q-A: implement now via templated payload, migrate in Phase 3).
+    we send a templated payload to /slicer/exec calling `slicer.util.saveScene`.
+    Audited like every other `/slicer/exec` caller.
     """
     cli_ctx: CliContext = ctx.obj
     try:

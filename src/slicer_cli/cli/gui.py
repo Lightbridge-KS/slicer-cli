@@ -1,4 +1,4 @@
-"""`slicer-cli gui ...` — switch viewer layout / GUI chrome (Phase 3).
+"""`slicer-cli gui ...` — switch viewer layout / GUI chrome.
 
 Surface:
 - `gui layout fourup [--contents full|viewers]`

@@ -1,7 +1,7 @@
 """`slicer-cli doctor` — capability matrix probe.
 
-Per PRD §7.3, the doctor probes a battery of independent capabilities and
-reports OK/FAIL per check. Each probe is wrapped so a single failing check
+The doctor probes a battery of independent capabilities and reports
+OK/FAIL per check. Each probe is wrapped so a single failing check
 never aborts the whole run — agents need a complete map to decide what
 they can / can't do against this Slicer.
 """

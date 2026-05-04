@@ -102,7 +102,7 @@ def test_render_slice_empty_png_blocked(runner: CliRunner, tmp_path: Path) -> No
     assert result.exit_code == 2
     body = json.loads(result.stdout)
     assert body["error"]["code"] == "E_BAD_RESPONSE"
-    # Mesa hint must include the literal env var (PRD §14 R3 — agents copy-paste).
+    # Mesa hint must include the literal env var verbatim so agents can copy-paste.
     assert "GALLIUM_DRIVER=llvmpipe" in body["error"]["hint"]
 
 

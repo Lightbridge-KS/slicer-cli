@@ -1,7 +1,7 @@
 """Safety guards shared across destructive CLI commands.
 
 These helpers raise the canonical `SlicerError` subclasses so the CLI's top-level
-error handler maps them to the right exit code (PRD §6.5):
+error handler maps them to the right exit code (see `errors.exit_code_for`):
 - `SlicerDestructiveError`  → exit 6
 - `SlicerEmptySelectorError` → exit 6
 
@@ -47,9 +47,9 @@ def require_exec_enabled(config: ExecConfig, *, override: bool) -> None:
 
     When `config.exec.enabled` is False, the call is refused (E_EXEC_DISABLED)
     unless the user explicitly passed `--i-understand-the-risk`. The override
-    flag is intentionally long and friction-y per Q-A in the Phase 3 plan.
-    Internal users (mrml.save_scene, dicom.pull_from_dicomweb, markup.add_line)
-    bypass this gate — they are vetted operations.
+    flag is intentionally long and friction-y so it isn't reflexively reused.
+    Internal `/slicer/exec` callers (mrml.save_scene, dicom.pull_from_dicomweb,
+    markup.add_line) bypass this gate — they are vetted operations.
     """
     if not config.enabled and not override:
         raise SlicerExecDisabledError()

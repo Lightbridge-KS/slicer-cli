@@ -1,8 +1,8 @@
-"""Route inventory — distilled from PRD Appendix A + surface report §4.1, §5.1.
+"""Route inventory for 3D Slicer's HTTP server.
 
 This is a *data file*. The CLI's `api routes` command reads it for offline
-introspection; `api raw` reads it to enforce destructive guards on
-matching `(method, path)` pairs.
+introspection; `api raw` reads it to enforce destructive guards on matching
+`(method, path)` pairs.
 
 Schema:
 - `method`        : HTTP verb the endpoint expects ("GET", "POST", "PUT", "DELETE").
@@ -12,9 +12,14 @@ Schema:
 - `destructive`   : True if calling this is destructive (clears scene, shuts down,
                     runs arbitrary code, deletes a node). Used by `api raw` guards.
 - `stub`          : True if Slicer's handler is known to be a stub / NotImplemented
-                    (per surface report §8). CLI surfaces E_NOT_IMPLEMENTED proactively.
-- `phase`         : MVP phase that wraps it ("Phase 1", "Phase 2", "Phase 3"), or
-                    None for endpoints we don't wrap (escape-hatch only via `api raw`).
+                    upstream. CLI surfaces E_NOT_IMPLEMENTED proactively for these.
+- `category`      : Capability tag — one of "system", "mrml", "data", "render",
+                    "markup", "transform", "dicom", "exec", "gui", or None for
+                    endpoints we don't wrap (escape-hatch only via `api raw`).
+                    Used by `api routes --category` for filtered browsing.
+- `note`          : Optional caveat — Slicer-side bugs, workarounds, or pointers
+                    to the right CLI command when the route shouldn't be called
+                    directly.
 """
 
 from __future__ import annotations
@@ -30,7 +35,7 @@ class Route:
     cli_command: str | None
     destructive: bool
     stub: bool
-    phase: str | None
+    category: str | None
     note: str | None = None
 
 
@@ -44,7 +49,7 @@ _SYSTEM: tuple[Route, ...] = (
         "status / system version",
         False,
         False,
-        "Phase 0",
+        "system",
     ),
     Route(
         "DELETE",
@@ -53,7 +58,7 @@ _SYSTEM: tuple[Route, ...] = (
         "system shutdown --confirm",
         True,
         False,
-        "Phase 1",
+        "system",
     ),
 )
 
@@ -65,7 +70,7 @@ _MRML: tuple[Route, ...] = (
         "scene nodes / scene ids",
         False,
         False,
-        "Phase 1",
+        "mrml",
     ),
     Route(
         "GET",
@@ -74,7 +79,7 @@ _MRML: tuple[Route, ...] = (
         "scene ids",
         False,
         False,
-        "Phase 1",
+        "mrml",
     ),
     Route(
         "GET",
@@ -83,7 +88,7 @@ _MRML: tuple[Route, ...] = (
         "node show",
         False,
         False,
-        "Phase 1",
+        "mrml",
     ),
     Route(
         "GET",
@@ -92,7 +97,7 @@ _MRML: tuple[Route, ...] = (
         "node export (via volume export) / scene save",
         False,
         False,
-        "Phase 1",
+        "mrml",
     ),
     Route(
         "POST",
@@ -101,7 +106,7 @@ _MRML: tuple[Route, ...] = (
         "volume import / scene load",
         False,
         False,
-        "Phase 1",
+        "mrml",
     ),
     Route(
         "PUT",
@@ -110,7 +115,7 @@ _MRML: tuple[Route, ...] = (
         "node reload",
         False,
         False,
-        "Phase 1",
+        "mrml",
     ),
     Route(
         "DELETE",
@@ -119,7 +124,7 @@ _MRML: tuple[Route, ...] = (
         "node delete / scene clear --confirm",
         True,
         False,
-        "Phase 1",
+        "mrml",
     ),
 )
 
@@ -131,7 +136,7 @@ _DATA: tuple[Route, ...] = (
         "sample load",
         False,
         False,
-        "Phase 1",
+        "data",
     ),
     Route(
         "GET",
@@ -140,7 +145,7 @@ _DATA: tuple[Route, ...] = (
         "volume list",
         False,
         False,
-        "Phase 1",
+        "data",
     ),
     Route(
         "GET",
@@ -149,11 +154,9 @@ _DATA: tuple[Route, ...] = (
         "volume export",
         False,
         False,
-        "Phase 1",
+        "data",
     ),
-    Route(
-        "POST", "/slicer/volume", "Upload NRRD; LPS/signed-short only", None, False, False, None
-    ),  # Phase 2+ if ever — `volume import` covers the file path
+    Route("POST", "/slicer/volume", "Upload NRRD; LPS/signed-short only", None, False, False, None),
     Route(
         "GET",
         "/slicer/volumeSelection",
@@ -173,7 +176,7 @@ _RENDER: tuple[Route, ...] = (
         "render screenshot",
         False,
         False,
-        "Phase 2",
+        "render",
     ),
     Route(
         "GET",
@@ -182,7 +185,7 @@ _RENDER: tuple[Route, ...] = (
         "render slice",
         False,
         False,
-        "Phase 2",
+        "render",
     ),
     Route(
         "GET",
@@ -191,7 +194,7 @@ _RENDER: tuple[Route, ...] = (
         "render threed",
         False,
         False,
-        "Phase 2",
+        "render",
     ),
     Route(
         "GET",
@@ -200,7 +203,7 @@ _RENDER: tuple[Route, ...] = (
         "render gltf",
         False,
         False,
-        "Phase 2",
+        "render",
     ),
     Route("GET", "/slicer/timeimage", "Debug: render system time as PNG", None, False, False, None),
     Route(
@@ -210,7 +213,7 @@ _RENDER: tuple[Route, ...] = (
         "gui layout",
         False,
         False,
-        "Phase 3",
+        "gui",
     ),
 )
 
@@ -222,7 +225,7 @@ _MARKUPS: tuple[Route, ...] = (
         "markup list --type fiducial",
         False,
         False,
-        "Phase 3",
+        "markup",
     ),
     Route(
         "PUT",
@@ -231,7 +234,7 @@ _MARKUPS: tuple[Route, ...] = (
         "markup fiducial-set",
         False,
         False,
-        "Phase 3",
+        "markup",
     ),
     Route(
         "GET",
@@ -240,7 +243,7 @@ _MARKUPS: tuple[Route, ...] = (
         "markup list --type segmentation",
         False,
         False,
-        "Phase 3",
+        "markup",
     ),
     Route("GET", "/slicer/segmentation", "(stub: 'not implemented yet')", None, False, True, None),
     Route(
@@ -250,7 +253,7 @@ _MARKUPS: tuple[Route, ...] = (
         "transform list",
         False,
         False,
-        "Phase 3",
+        "transform",
     ),
     Route(
         "GET",
@@ -259,7 +262,7 @@ _MARKUPS: tuple[Route, ...] = (
         "transform export",
         False,
         False,
-        "Phase 3",
+        "transform",
     ),
     Route("POST", "/slicer/gridTransform", "(stub: NotImplementedError)", None, False, True, None),
     Route("GET", "/slicer/tracking", "Set internal tracking cursor pose", None, False, False, None),
@@ -267,7 +270,7 @@ _MARKUPS: tuple[Route, ...] = (
 
 _POWER: tuple[Route, ...] = (
     Route(
-        "POST", "/slicer/exec", "Run Python in Slicer's interpreter", "exec", True, False, "Phase 3"
+        "POST", "/slicer/exec", "Run Python in Slicer's interpreter", "exec", True, False, "exec"
     ),
     Route(
         "POST",
@@ -276,10 +279,11 @@ _POWER: tuple[Route, ...] = (
         "dicom pull",
         False,
         False,
-        "Phase 2",
+        "dicom",
         note=(
-            "bypassed in CLI: handler has a Python TypeError bug "
-            "(surface report §8.1). `dicom pull` uses /slicer/exec instead."
+            "bypassed in CLI: Slicer's handler has a TypeError bug — it builds "
+            "a 2-tuple body and then indexes into it with a string key. "
+            "`dicom pull` uses /slicer/exec instead."
         ),
     ),
 )
@@ -294,7 +298,7 @@ _DICOM: tuple[Route, ...] = (
         "dicom studies",
         False,
         False,
-        "Phase 2",
+        "dicom",
     ),
     Route(
         "GET",
@@ -303,7 +307,7 @@ _DICOM: tuple[Route, ...] = (
         "dicom meta",
         False,
         False,
-        "Phase 2",
+        "dicom",
     ),
     Route(
         "GET",
@@ -312,7 +316,7 @@ _DICOM: tuple[Route, ...] = (
         "dicom series",
         False,
         False,
-        "Phase 2",
+        "dicom",
     ),
     Route(
         "GET",
@@ -321,7 +325,7 @@ _DICOM: tuple[Route, ...] = (
         "dicom meta",
         False,
         False,
-        "Phase 2",
+        "dicom",
     ),
     Route(
         "GET",
@@ -330,7 +334,7 @@ _DICOM: tuple[Route, ...] = (
         "dicom instances",
         False,
         False,
-        "Phase 2",
+        "dicom",
     ),
     Route(
         "GET",
@@ -339,7 +343,7 @@ _DICOM: tuple[Route, ...] = (
         "dicom instance",
         False,
         False,
-        "Phase 2",
+        "dicom",
     ),
     Route(
         "GET",
@@ -348,7 +352,7 @@ _DICOM: tuple[Route, ...] = (
         "dicom meta",
         False,
         False,
-        "Phase 2",
+        "dicom",
     ),
 )
 

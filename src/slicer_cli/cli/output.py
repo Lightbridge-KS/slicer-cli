@@ -1,4 +1,4 @@
-"""Output formatters — JSON envelope (PRD §6.2/§6.3) and rich pretty mode.
+"""Output formatters — JSON envelope and rich pretty mode.
 
 CLI commands hand a *payload dict* and a *mode* to render_success/render_error;
 they never call print() directly. This keeps the JSON contract stable and
@@ -219,7 +219,7 @@ def _render_routes(console: Console, rows: list[dict[str, Any]]) -> None:
     table.add_column("Path", no_wrap=True)
     table.add_column("Purpose")
     table.add_column("CLI", style="dim")
-    table.add_column("Phase", style="dim", no_wrap=True)
+    table.add_column("Category", style="dim", no_wrap=True)
     table.add_column("Flags", no_wrap=True)
     for row in rows:
         flags = []
@@ -232,7 +232,7 @@ def _render_routes(console: Console, rows: list[dict[str, Any]]) -> None:
             str(row.get("path", "")),
             str(row.get("purpose", "")),
             str(row.get("cli_command") or "—"),
-            str(row.get("phase") or "—"),
+            str(row.get("category") or "—"),
             " ".join(flags),
         )
     console.print(table)

@@ -1,5 +1,9 @@
 """Markup endpoints — `/slicer/fiducials`, `/slicer/fiducial`, `/slicer/segmentations`,
-plus templated `/slicer/exec` for line markups (no native endpoint per surface §6.5).
+plus templated `/slicer/exec` for line markups.
+
+Slicer's HTTP server has no native endpoint for creating line markup nodes,
+so `add_line` builds a small `vtkMRMLMarkupsLineNode` script and posts it
+to `/slicer/exec`.
 
 Both list endpoints return a dict keyed by node ID rather than a flat array,
 so the mixin normalizes them to `list[FiducialNode]` / `list[SegmentationNode]`
@@ -116,10 +120,10 @@ class MarkupMixin(_HttpClient):
     ) -> LineMarkupResult:
         """Create a `vtkMRMLMarkupsLineNode` between two RAS points via templated /exec.
 
-        Lines have no native HTTP endpoint (surface report §6.5). The templated
-        body adds a node with two control points and reads back its world-space
-        length. Routes through `_post_exec` so each call writes one audit-log
-        entry per PRD §8.3.
+        Slicer has no native HTTP endpoint for creating line markups. The
+        templated body adds a node with two control points and reads back its
+        world-space length. Routes through `_post_exec` so each call writes
+        one audit-log entry.
         """
         cleaned_name = (name or "").strip()
         if not cleaned_name:

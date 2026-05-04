@@ -1,12 +1,14 @@
 # Slicer CLI
 
-> A convenient CLI for AI Agent and human to interact with 3D Slicer Webserver.
+> A convenient CLI wrapper around 3D Slicer's in-process HTTP Web Server (port 2016), so that an AI coding agent and a human developer can drive Slicer from outside the application
 
-This file is the project-local agent guide for the **whole repo**. It is symlinked from `CLAUDE.md`, so editing either propagates to both.
+## Project
+
+- **Name:** `slicer-cli`
+- **Goal:** Agent-first CLI wrapper around 3D Slicer's HTTP server (`127.0.0.1:2016` by default).
+- **Primary language:** Python 3.11+ (managed by `uv`).
 
 ## Where to learn more
-
-Progressive disclosure — load only what's relevant to where you're editing:
 
 | When working in | Read this file (auto-loaded) |
 |---|---|
@@ -21,19 +23,12 @@ For the *what* and *why*, not the *how*:
 - [`docs/TODOS.md`](./docs/TODOS.md) — live phase tracker (what's done, what's next)
 - [`docs/3d-slicer-webserver-surface-report.md`](./docs/3d-slicer-webserver-surface-report.md) — authoritative reference for Slicer's HTTP surface
 
-## Project
-
-- **Name:** `slicer-cli`
-- **Goal:** Agent-first CLI wrapper around 3D Slicer's HTTP server (`127.0.0.1:2016` by default).
-- **Primary language:** Python 3.11+ (managed by `uv`).
-- **Status:** Phases 0 + 1 + 2 + 3 complete (read/write + render + DICOMweb + markup + gated/audited `exec` + `gui layout` ship). Codebase-org-1 refactor landed: `mrml`/`dicom`/`markup` are bundled subpackages; `cli/mrml/` flattened; bundle-vs-flat threshold rule documented in `src/slicer_cli/AGENTS.md`. Phase 4 (`doctor` extensions, alt-port discovery, companion skill) is next per `docs/TODOS.md`.
 
 ## How to work in this repo
 
 - Keep changes small and incremental. One command at a time, with tests beside it.
 - Update `docs/TODOS.md` checkboxes as items land. Reference the commit hash in the line you tick.
 - Update `docs/Slicer-CLI-PRD.md` if a scope decision changes — never silently drift.
-- Add/update tests for behaviour changes (PRD §13 DoD).
 
 ## Commands
 
@@ -52,17 +47,7 @@ For the *what* and *why*, not the *how*:
 
 - **Conventional Commits.** Examples: `feat(cli): add scene clear`, `fix(client): map 400 to E_HTTP_4XX`, `docs(prd): lock §14.2`.
 - **Strict typing.** `mypy --strict` clean. No `Any` in the public client API. Use `from __future__ import annotations` and modern union syntax (`X | None`).
-- **Docstrings:** casual one-liners by default; NumPy style only for public APIs that warrant it (per `~/.claude/CLAUDE.md`).
+- **Docstrings:** casual one-liners by default; NumPy style only for public APIs that warrant it.
 - **Comments:** only when *why* is non-obvious. Don't paraphrase the code.
-- **Class layout:** public methods before private (per `~/.claude/CLAUDE.md`).
+- **Class layout:** public methods before private.
 - **No emojis** unless the user asks for them. (Rich markup like `[bold]…[/]` is a different thing — see `src/slicer_cli/AGENTS.md` for where it's allowed.)
-
-## Definition of done (per checklist item)
-
-- [ ] Code works for the requested scope
-- [ ] Unit tests pass (`respx` mocks)
-- [ ] Integration test passes against live Slicer (when applicable)
-- [ ] `ruff check` + `ruff format --check` clean
-- [ ] `mypy` clean
-- [ ] PRD / TODOS updated if scope shifted
-- [ ] Conventional Commits message

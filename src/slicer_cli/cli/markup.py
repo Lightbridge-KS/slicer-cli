@@ -1,4 +1,4 @@
-"""`slicer-cli markup ...` — fiducials, lines, segmentations (Phase 3).
+"""`slicer-cli markup ...` — fiducials, lines, segmentations.
 
 Surface:
 - `markup list [--type fiducial|segmentation]`  default: merged view of both

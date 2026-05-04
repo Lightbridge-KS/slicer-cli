@@ -1,7 +1,6 @@
 """System-scope endpoints — `/slicer/system*`.
 
-Flat domain (no sub-bundle): the response model `SystemVersion` is defined
-inline below. See `src/slicer_cli/AGENTS.md` for the bundle-vs-flat threshold.
+Flat domain: the response model `SystemVersion` is defined inline below.
 """
 
 from __future__ import annotations
@@ -16,7 +15,7 @@ from slicer_cli.client.errors import SlicerBadResponseError
 
 
 class SystemVersion(_SlicerModel):
-    """Response of GET /slicer/system/version (PRD Appendix A)."""
+    """Response of GET /slicer/system/version."""
 
     application_name: str = Field(alias="applicationName")
     application_version: str = Field(alias="applicationVersion")

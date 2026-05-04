@@ -36,7 +36,11 @@ def routes_command(
     destructive_only: bool = typer.Option(
         False, "--destructive", help="Show only destructive endpoints."
     ),
-    phase: str | None = typer.Option(None, "--phase", help="Filter by phase tag, e.g. 'Phase 1'."),
+    category: str | None = typer.Option(
+        None,
+        "--category",
+        help="Filter by capability category (e.g. 'mrml', 'render', 'dicom').",
+    ),
 ) -> None:
     """List known Slicer endpoints (offline — reads package data)."""
     cli_ctx: CliContext = ctx.obj
@@ -48,7 +52,7 @@ def routes_command(
             continue
         if destructive_only and not r.destructive:
             continue
-        if phase and r.phase != phase:
+        if category and r.category != category:
             continue
         rows.append(
             {
@@ -58,7 +62,7 @@ def routes_command(
                 "cli_command": r.cli_command,
                 "destructive": r.destructive,
                 "stub": r.stub,
-                "phase": r.phase,
+                "category": r.category,
                 "note": r.note,
             }
         )

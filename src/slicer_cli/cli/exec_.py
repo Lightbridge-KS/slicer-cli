@@ -1,4 +1,4 @@
-"""`slicer-cli exec` — run Python in Slicer's interpreter (Phase 3, gated + audited).
+"""`slicer-cli exec` — run Python in Slicer's interpreter (gated + audited).
 
 Surface:
 - `exec --code 'print("hi"); __execResult = 1'`
@@ -8,8 +8,9 @@ Surface:
 - `--i-understand-the-risk`   required if `config.exec.enabled = false`
 
 The remote source MUST set `__execResult` to a JSON-serializable value;
-Slicer returns that as the response body. See PRD §8.3 for the audit-log
-contract and the file format.
+Slicer returns that as the response body. The audit-log writer
+(`client._internal.audit.AuditLogger`) records every invocation; see that
+module for the line format.
 """
 
 from __future__ import annotations

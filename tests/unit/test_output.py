@@ -1,4 +1,4 @@
-"""Output envelope shapes (PRD §6.2/§6.3)."""
+"""Output envelope shapes — JSON success and error payloads."""
 
 from __future__ import annotations
 

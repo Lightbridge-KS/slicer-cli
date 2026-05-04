@@ -1,8 +1,8 @@
 """Error types and stable codes shared by the client and the CLI.
 
-Single source of truth for the `E_*` strings and their exit-code mapping
-(PRD §6.4 and §6.5). Every CLI command surfaces failures as a SlicerError
-or one of its subclasses; the root CLI maps `error.code` -> exit code.
+Single source of truth for the `E_*` strings and their exit-code mapping.
+Every CLI command surfaces failures as a `SlicerError` or one of its
+subclasses; the root CLI maps `error.code` -> exit code via `exit_code_for`.
 """
 
 from __future__ import annotations
@@ -45,7 +45,7 @@ _EXIT_CODES: dict[ErrorCode, int] = {
 
 
 def exit_code_for(code: ErrorCode) -> int:
-    """Map an ErrorCode to its CLI exit code (PRD §6.5)."""
+    """Map an ErrorCode to its CLI exit code. Unknown codes return 10."""
     return _EXIT_CODES.get(code, 10)
 
 
@@ -77,7 +77,7 @@ class SlicerError(Exception):
         self.http_status = http_status
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize to the JSON envelope's `error` payload (PRD §6.3)."""
+        """Serialize to the JSON envelope's `error` payload."""
         return {
             "code": str(self.code),
             "message": self.message,
