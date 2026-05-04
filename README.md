@@ -47,13 +47,13 @@ Once a release exists, install the wheel asset directly:
 
 ```bash
 uv tool install \
-  https://github.com/Lightbridge-KS/slicer-cli/releases/download/v0.1.0/slicer_cli-0.1.0-py3-none-any.whl
+  https://github.com/Lightbridge-KS/slicer-cli/releases/download/vX.X.X/slicer_cli-0.1.0-py3-none-any.whl
 ```
 
 Or install straight from a tagged commit (works without a release artifact):
 
 ```bash
-uv tool install git+https://github.com/Lightbridge-KS/slicer-cli.git@v0.1.0
+uv tool install git+https://github.com/Lightbridge-KS/slicer-cli.git@vX.X.X
 ```
 
 For a one-shot run without a persistent install:
