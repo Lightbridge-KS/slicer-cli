@@ -1,12 +1,14 @@
 """`slicer-cli dicom ...` — QIDO + WADO-RS commands.
 
-Phase 2 batch 2 lands the read side:
+Surface:
 - `dicom studies / series / instances`  — QIDO listing
 - `dicom instance ... --out`            — WADO-RS retrieve (raw DICOM bytes)
 - `dicom meta`                          — variadic metadata dispatch
+- `dicom pull`                          — fetch a study from a DICOMweb peer
+                                          (e.g. Orthanc) into Slicer's DICOM DB
 
-Phase 2 batch 3 will add `dicom pull`. The CLI surface stays flat — this
-file just wires onto `DicomMixin` methods on `SlicerClient`.
+The CLI surface stays flat — this file wires onto `DicomMixin` methods
+on `SlicerClient`.
 """
 
 from __future__ import annotations
@@ -188,7 +190,7 @@ def pull_command(
 
     Routes through `/slicer/exec` (the native `/slicer/accessDICOMwebStudy`
     endpoint has a Slicer-side Python bug — see `api routes` for details).
-    Requires `/slicer/exec` to be enabled on Slicer (the YOLO default; check
+    Requires `/slicer/exec` to be enabled on Slicer (the default; check
     via `slicer-cli doctor`).
     """
     cli_ctx: CliContext = ctx.obj

@@ -22,9 +22,11 @@ from slicer_cli.client.mrml.id_helpers import (
 
 
 def parse_class_filter(value: str | None) -> str | None:
-    """Pass-through validator for `--class` filter values (locked Q-C: no aliases).
+    """Pass-through validator for `--class` filter values.
 
     Empty/whitespace becomes None so callers can drop the query parameter.
+    No alias expansion — pass the literal `vtkMRML…Node` class name through
+    so the user retains full control over what Slicer filters on.
     """
     if value is None:
         return None

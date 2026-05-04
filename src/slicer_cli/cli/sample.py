@@ -1,6 +1,8 @@
 """`slicer-cli sample ...` — built-in SampleData operations.
 
-`sample list` is offline (curated allow-list per locked Q-B).
+`sample list` is offline — it returns a curated allow-list bundled with
+the CLI rather than calling Slicer (Slicer's SampleData module discovers
+samples at runtime and has no listing endpoint).
 `sample load <name>` accepts any string (passthrough — Slicer will 4xx if unknown).
 """
 

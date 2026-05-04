@@ -38,16 +38,14 @@ def test_doctor_reports_reachable(runner: CliRunner) -> None:
 
 
 @pytest.mark.skipif(not _gated(), reason="set SLICER_INTEGRATION=1 to run")
-def test_api_routes_lists_phase1_endpoints(runner: CliRunner) -> None:
+def test_api_routes_lists_mrml_endpoints(runner: CliRunner) -> None:
     """`api routes` is offline-only, but worth verifying inside the live suite too."""
-    result = runner.invoke(app, ["--json", "api", "routes", "--phase", "Phase 1"])
+    result = runner.invoke(app, ["--json", "api", "routes", "--category", "mrml"])
 
     assert result.exit_code == 0, result.stderr
     body = json.loads(result.stdout)
     paths = {r["path"] for r in body["routes"]}
-    # Some Phase-1 paths we know must be present.
     assert "/slicer/mrml" in paths
-    assert "/slicer/volumes" in paths
 
 
 @pytest.mark.skipif(not _gated(), reason="set SLICER_INTEGRATION=1 to run")

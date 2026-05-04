@@ -34,7 +34,6 @@ class ServerConfig(BaseModel):
 
     url: str = "http://127.0.0.1:2016"
     timeout_seconds: float = 30.0
-    discover_alt_ports: bool = False  # Phase 4
 
 
 class OutputConfig(BaseModel):
