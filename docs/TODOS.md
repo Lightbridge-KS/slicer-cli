@@ -240,9 +240,9 @@
 
 ## Phase 4 — Companion skill
 
-**Goal:** A single skill at `.claude/skills/slicer-cli/SKILL.md` that triggers Claude to use the CLI on Slicer-related prompts.
+**Goal:** A single skill at `.agents/skills/slicer-cli/SKILL.md` that triggers AI Coding Agents (e.g., Claude Code, Codex) to use the CLI on Slicer-related prompts.
 
-- [ ] `.claude/skills/slicer-cli/SKILL.md` written per PRD §12 format
+- [ ] `.agents/skills/slicer-cli/SKILL.md` written per PRD §12 format
 - [ ] Frontmatter `description:` field carefully tuned for Claude trigger matching
 - [ ] Body: when-to-invoke, safety rules (no `scene clear` / `system shutdown` / `exec` without explicit user instruction), JSON-mode reminder, 3-5 worked examples
 - [ ] Cross-links to `slicer-cli api routes --json` and `slicer-cli doctor --json`
