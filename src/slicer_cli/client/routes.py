@@ -1,8 +1,8 @@
-"""Route inventory — distilled from PRD Appendix A + surface report §4.1, §5.1.
+"""Route inventory for 3D Slicer's HTTP server.
 
 This is a *data file*. The CLI's `api routes` command reads it for offline
-introspection; `api raw` reads it to enforce destructive guards on
-matching `(method, path)` pairs.
+introspection; `api raw` reads it to enforce destructive guards on matching
+`(method, path)` pairs.
 
 Schema:
 - `method`        : HTTP verb the endpoint expects ("GET", "POST", "PUT", "DELETE").
@@ -12,9 +12,13 @@ Schema:
 - `destructive`   : True if calling this is destructive (clears scene, shuts down,
                     runs arbitrary code, deletes a node). Used by `api raw` guards.
 - `stub`          : True if Slicer's handler is known to be a stub / NotImplemented
-                    (per surface report §8). CLI surfaces E_NOT_IMPLEMENTED proactively.
-- `phase`         : MVP phase that wraps it ("Phase 1", "Phase 2", "Phase 3"), or
-                    None for endpoints we don't wrap (escape-hatch only via `api raw`).
+                    upstream. CLI surfaces E_NOT_IMPLEMENTED proactively for these.
+- `phase`         : Capability tag that wraps it (see Batch 3 — to become semantic
+                    `category` like "mrml", "render", "dicom"), or None for
+                    endpoints we don't wrap (escape-hatch only via `api raw`).
+- `note`          : Optional caveat — Slicer-side bugs, workarounds, or pointers
+                    to the right CLI command when the route shouldn't be called
+                    directly.
 """
 
 from __future__ import annotations
@@ -278,8 +282,9 @@ _POWER: tuple[Route, ...] = (
         False,
         "Phase 2",
         note=(
-            "bypassed in CLI: handler has a Python TypeError bug "
-            "(surface report §8.1). `dicom pull` uses /slicer/exec instead."
+            "bypassed in CLI: Slicer's handler has a TypeError bug — it builds "
+            "a 2-tuple body and then indexes into it with a string key. "
+            "`dicom pull` uses /slicer/exec instead."
         ),
     ),
 )

@@ -21,7 +21,7 @@ def test_api_routes_returns_full_table(runner: CliRunner) -> None:
 
     assert result.exit_code == 0, result.stderr
     body = json.loads(result.stdout)
-    assert len(body["routes"]) >= 30  # PRD Appendix A has 30+ entries
+    assert len(body["routes"]) >= 30  # the inventory currently lists 30+ routes
     # /slicer/system/version is always present.
     paths = {r["path"] for r in body["routes"]}
     assert "/slicer/system/version" in paths

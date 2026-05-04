@@ -133,19 +133,19 @@ class DicomMixin(_HttpClient):
         """Pull a study from a DICOMweb peer (e.g., Orthanc) into Slicer's DB.
 
         Routes through `/slicer/exec` calling `DICOMLib.DICOMUtils.importFromDICOMWeb`
-        because the native `/slicer/accessDICOMwebStudy` endpoint has a hard
-        Python `TypeError` bug (surface report §8.1: handler does
-        `request = json.loads(...), b"application/json"` — that's a tuple —
-        then `request["dicomWEBPrefix"]`).
+        because Slicer's native `/slicer/accessDICOMwebStudy` endpoint has a
+        hard `TypeError` bug — its handler builds the request body as a
+        2-tuple `(json.loads(...), b"application/json")` and then indexes
+        into it with `request["dicomWEBPrefix"]`, which raises immediately.
+        Going through `/slicer/exec` bypasses the broken handler.
 
         `prefix` should be the Orthanc base URL, e.g. `http://localhost:8042`.
         `store` is appended as a subpath unless empty (default `dicom-web` —
         Orthanc's default DICOMweb plugin route). Pass `store=""` if `prefix`
         already includes the full path.
 
-        Phase 3 will retroactively gate this through the `exec` audit-log
-        once that machinery lands; the `build_exec_payload` helper is the
-        single migration point. (Same precedent as `mrml.save_scene`.)
+        Audit-logged via the `_post_exec` funnel like every other
+        `/slicer/exec` caller.
         """
         cleaned_prefix = prefix.strip().rstrip("/")
         if not cleaned_prefix:

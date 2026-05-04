@@ -7,9 +7,9 @@ from pathlib import Path
 from slicer_cli.config import load_config
 
 
-def test_builtin_defaults_yolo_exec() -> None:
+def test_builtin_defaults_permissive_exec() -> None:
     config = load_config(env={}, user_config_path=Path("/nonexistent"))
-    assert config.exec.enabled is True  # YOLO default per PRD
+    assert config.exec.enabled is True  # permissive default — operators can disable
     assert config.server.url == "http://127.0.0.1:2016"
 
 

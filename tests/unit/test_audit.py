@@ -1,8 +1,8 @@
 """Tests for `client._internal.audit.AuditLogger`.
 
-We assert on the canonical PRD §8.3 line shape (timestamp, rev, url, hash,
-preview, op label), append-on-write semantics, mkdir-of-parents on first
-write, and clean error mapping when the path is unwritable.
+We assert on the canonical line shape (timestamp, rev, url, hash, preview,
+op label), append-on-write semantics, mkdir-of-parents on first write, and
+clean error mapping when the path is unwritable.
 """
 
 from __future__ import annotations

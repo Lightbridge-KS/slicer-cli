@@ -73,7 +73,7 @@ def test_route_dataclass_is_frozen() -> None:
 
 
 def test_access_dicomweb_study_is_flagged_with_bug_note() -> None:
-    """The known Slicer-side bug (surface report §8.1) must be exposed via `api routes`."""
+    """The known upstream Slicer bug must be exposed via `api routes` so agents see the hazard."""
     route = find_route("POST", "/slicer/accessDICOMwebStudy")
     assert route is not None
     assert route.note is not None

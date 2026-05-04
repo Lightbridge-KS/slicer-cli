@@ -22,7 +22,7 @@ from slicer_cli.client.errors import (
 from slicer_cli.client.mrml.id_helpers import attach_class_to_refs
 from slicer_cli.client.mrml.models import DeleteResult, LoadResult, NodeRef
 
-# `filetype` values that POST /slicer/mrml accepts (per PRD Appendix A).
+# `filetype` values that POST /slicer/mrml accepts.
 LOAD_FILETYPES: frozenset[str] = frozenset(
     {
         "VolumeFile",
@@ -156,8 +156,7 @@ class MrmlMixin(_HttpClient):
         Slicer's WebServer has no native "save scene" endpoint, so we route
         through the audited `_post_exec` funnel with a templated
         `slicer.util.saveScene` payload. The audit log records every
-        invocation per PRD §8.3 when the client is constructed with an
-        `AuditLogger`.
+        invocation when the client is constructed with an `AuditLogger`.
         """
         if not path.strip():
             raise SlicerBadInputError("path must not be empty")

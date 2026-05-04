@@ -9,9 +9,9 @@ once per test (cached via session-scope) and skip cleanly if:
   - Orthanc isn't running (connection refused / timeout)
   - The OrthancDicomWeb plugin isn't loaded (404 or non-JSON response)
 
-Folded under `SLICER_INTEGRATION=1` per the locked Q-5 (no separate env var):
-running the full integration suite requires Slicer; Orthanc-dependent tests
-just bail when their backing service is missing.
+Folded under `SLICER_INTEGRATION=1` (no separate env var): running the full
+integration suite requires Slicer; Orthanc-dependent tests just bail when
+their backing service is missing.
 """
 
 from __future__ import annotations
