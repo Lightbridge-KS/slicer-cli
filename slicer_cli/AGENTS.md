@@ -1,11 +1,11 @@
-# `src/slicer_cli/` — source-tree guide
+# `slicer_cli/` — source-tree guide
 
-Read [`/AGENTS.md`](../../AGENTS.md) first for project-wide context. This file covers rules that apply when editing source under `src/slicer_cli/`.
+Read [`/AGENTS.md`](../AGENTS.md) first for project-wide context. This file covers rules that apply when editing source under `slicer_cli/`.
 
 ## Architecture
 
 ```
-src/slicer_cli/
+slicer_cli/
 ├── config.py                 layered config loader (flag > env > project > user > built-in)
 ├── cli/                      thin Typer glue. NO http knowledge — calls into client/ only
 │   ├── app.py                root Typer + global flags + main()

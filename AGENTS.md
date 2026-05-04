@@ -13,7 +13,7 @@
 | When working in | Read this (auto-loaded) |
 |---|---|
 | Anywhere in repo | `AGENTS.md` (this file) |
-| `src/slicer_cli/**` | `src/slicer_cli/AGENTS.md` |
+| `slicer_cli/**` | `slicer_cli/AGENTS.md` |
 | `tests/**` | `tests/AGENTS.md` |
 
 For *what* and *why* (not auto-loaded — read on demand):
@@ -40,5 +40,5 @@ For *what* and *why* (not auto-loaded — read on demand):
 - **Docstrings:** casual one-liners by default; NumPy style for public APIs that warrant it.
 - **Comments:** only when *why* is non-obvious. Don't paraphrase code.
 - **Class layout:** public methods before private.
-- **No emojis** unless the user asks. (Rich markup like `[bold]…[/]` is allowed inside `cli/output.py` only — see `src/slicer_cli/AGENTS.md`.)
+- **No emojis** unless the user asks. (Rich markup like `[bold]…[/]` is allowed inside `cli/output.py` only — see `slicer_cli/AGENTS.md`.)
 - **Commits:** Conventional Commits (`feat(cli): …`, `fix(client): …`, `docs: …`).

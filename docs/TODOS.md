@@ -37,24 +37,24 @@
 
 ### Module skeleton
 
-- [x] `src/slicer_cli/__init__.py` — `__version__ = "0.1.0"`
-- [x] `src/slicer_cli/config.py` — pydantic-settings model + layered loader (PRD §7.1)
-- [x] `src/slicer_cli/output.py` — JSON envelope + rich pretty formatter (PRD §6.2/§6.3)
-- [x] `src/slicer_cli/client/__init__.py`
-- [x] `src/slicer_cli/client/base.py` — `SlicerClient` (httpx.Client wrapper)
-- [x] `src/slicer_cli/client/errors.py` — `SlicerError` + stable `E_*` codes (PRD §6.4)
-- [x] `src/slicer_cli/client/models.py` — pydantic models (`SystemVersion`, `NodeRef`)
-- [ ] `src/slicer_cli/client/routes.py` — placeholder for Phase-1 route data *(deferred to Phase 1 — we don't need it yet)*
-- [ ] `src/slicer_cli/client/system.py` — *(client method `system_version()` lives on `SlicerClient` directly; standalone module not needed yet)*
-- [ ] `src/slicer_cli/client/{scene,volume,render,dicom,markup,exec_}.py` *(deferred to phases that need them; CLI stubs at the cli/ layer suffice for Phase 0)*
-- [x] `src/slicer_cli/cli/__init__.py`
-- [x] `src/slicer_cli/cli/app.py` — root Typer with global flags + argv hoister so flags work after the subcommand too
-- [x] `src/slicer_cli/cli/_context.py` — `CliContext` + `build_context`
-- [x] `src/slicer_cli/cli/_stub.py` — shared `E_NOT_IMPLEMENTED` helper
-- [x] `src/slicer_cli/cli/status.py` — functional
-- [x] `src/slicer_cli/cli/system.py` — `version` functional, `shutdown` Phase-1 stub
-- [x] `src/slicer_cli/cli/config.py` — `show / get / path` functional
-- [x] `src/slicer_cli/cli/{scene,node,volume,sample,render,markup,dicom,exec_,api,doctor}.py` — stubs returning `E_NOT_IMPLEMENTED`
+- [x] `slicer_cli/__init__.py` — `__version__ = "0.1.0"`
+- [x] `slicer_cli/config.py` — pydantic-settings model + layered loader (PRD §7.1)
+- [x] `slicer_cli/output.py` — JSON envelope + rich pretty formatter (PRD §6.2/§6.3)
+- [x] `slicer_cli/client/__init__.py`
+- [x] `slicer_cli/client/base.py` — `SlicerClient` (httpx.Client wrapper)
+- [x] `slicer_cli/client/errors.py` — `SlicerError` + stable `E_*` codes (PRD §6.4)
+- [x] `slicer_cli/client/models.py` — pydantic models (`SystemVersion`, `NodeRef`)
+- [ ] `slicer_cli/client/routes.py` — placeholder for Phase-1 route data *(deferred to Phase 1 — we don't need it yet)*
+- [ ] `slicer_cli/client/system.py` — *(client method `system_version()` lives on `SlicerClient` directly; standalone module not needed yet)*
+- [ ] `slicer_cli/client/{scene,volume,render,dicom,markup,exec_}.py` *(deferred to phases that need them; CLI stubs at the cli/ layer suffice for Phase 0)*
+- [x] `slicer_cli/cli/__init__.py`
+- [x] `slicer_cli/cli/app.py` — root Typer with global flags + argv hoister so flags work after the subcommand too
+- [x] `slicer_cli/cli/_context.py` — `CliContext` + `build_context`
+- [x] `slicer_cli/cli/_stub.py` — shared `E_NOT_IMPLEMENTED` helper
+- [x] `slicer_cli/cli/status.py` — functional
+- [x] `slicer_cli/cli/system.py` — `version` functional, `shutdown` Phase-1 stub
+- [x] `slicer_cli/cli/config.py` — `show / get / path` functional
+- [x] `slicer_cli/cli/{scene,node,volume,sample,render,markup,dicom,exec_,api,doctor}.py` — stubs returning `E_NOT_IMPLEMENTED`
 
 ### Tests
 
@@ -138,7 +138,7 @@
 ### Cross-cutting
 
 - [x] PRD-Appendix-A coverage check: every Phase-1 row ticked
-- [x] Update relevant AGENTS.md (root + `src/slicer_cli/AGENTS.md` + `tests/AGENTS.md`)
+- [x] Update relevant AGENTS.md (root + `slicer_cli/AGENTS.md` + `tests/AGENTS.md`)
 
 ---
 
@@ -178,7 +178,7 @@
 ### Cross-cutting ✓
 
 - [x] Update User Manual `docs/Slicer-CLI-UserManual.md`: promote render/dicom out of §4.6, add §5.6 render workflows, §5.7 Orthanc workflow (placeholder UIDs only; PHI kept out)
-- [x] Update `src/slicer_cli/AGENTS.md`: validators / exec / DICOM tag-flatten patterns documented
+- [x] Update `slicer_cli/AGENTS.md`: validators / exec / DICOM tag-flatten patterns documented
 - [x] Update `tests/AGENTS.md`: PNG fixture pattern + Orthanc skip pattern + DICOM JSON shape notes
 - [x] Update root `AGENTS.md`: status line bumped to Phases 0+1+2 complete
 
@@ -222,7 +222,7 @@
 ### Cross-cutting ✓
 
 - [x] User Manual: §4.8 (markup), §4.9 (formal exec + audit), §4.10 (gui), §5.8 (templated workflows + audit log), §5.9 (markup workflows), §5.10 (gui layout switching); status bumped to Phases 0–3 complete
-- [x] `src/slicer_cli/AGENTS.md`: documented audited POST funnel rule, AuditLogger pattern, `require_exec_enabled` gate
+- [x] `slicer_cli/AGENTS.md`: documented audited POST funnel rule, AuditLogger pattern, `require_exec_enabled` gate
 - [x] `tests/AGENTS.md`: documented `audit_log_path` fixture pattern + `--i-understand-the-risk` gating-test pattern
 
 ---
@@ -234,7 +234,7 @@
 - [x] Batch 1 — `output.py` → `cli/output.py`; `_internal/exec.py` → `exec_template.py`; `models/_base.py` → `_internal/models_base.py` (`22d8c3a`)
 - [x] Batch 2 — bundle `mrml`, `dicom`, `markup` as domain subpackages; inline `system`/`volume` models; dissolve `client/models/` (replaced by thin `client/models.py` shim) (`df76d4e`)
 - [x] Batch 3 — flatten `cli/mrml/`; helpers move to `cli/_internal/mrml_helpers.py`; commands move up to `cli/` (`633d93a`)
-- [x] Batch 4 — `src/slicer_cli/AGENTS.md`: rewritten architecture tree + added "Bundle-vs-flat threshold" load-bearing principle; updated `_internal/` rule and "Adding a new client method" pattern
+- [x] Batch 4 — `slicer_cli/AGENTS.md`: rewritten architecture tree + added "Bundle-vs-flat threshold" load-bearing principle; updated `_internal/` rule and "Adding a new client method" pattern
 
 ---
 

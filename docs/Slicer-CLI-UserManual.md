@@ -612,4 +612,4 @@ which ones are wrapped now and which are deferred.
 - PRD: [`Slicer-CLI-PRD.md`](./Slicer-CLI-PRD.md) — locked decisions, contracts, rationale.
 - Implementation tracker: [`TODOS.md`](./TODOS.md) — what's done, what's next.
 - Surface report (Slicer side): [`3d-slicer-webserver-surface-report.md`](./3d-slicer-webserver-surface-report.md) — every endpoint, fragility notes.
-- Project conventions: [`AGENTS.md`](../AGENTS.md) (root) and the per-tree `AGENTS.md` files under `src/slicer_cli/` and `tests/`.
+- Project conventions: [`AGENTS.md`](../AGENTS.md) (root) and the per-tree `AGENTS.md` files under `slicer_cli/` and `tests/`.

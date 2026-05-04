@@ -39,6 +39,9 @@ Source = "https://github.com/Lightbridge-KS/slicer-cli"
 requires = ["uv_build>=0.11.8,<0.12.0"]
 build-backend = "uv_build"
 
+[tool.uv.build-backend]
+module-root = ""
+
 [dependency-groups]
 dev = [
     "pytest>=8.0",
@@ -84,7 +87,7 @@ warn_redundant_casts = true
 warn_unused_ignores = true
 no_implicit_reexport = true
 disallow_untyped_defs = true
-files = ["src/slicer_cli", "tests"]
+files = ["slicer_cli", "tests"]
 
 [[tool.mypy.overrides]]
 module = ["respx.*", "pytest_httpx.*"]

@@ -506,7 +506,7 @@ Already shown in §7.3. Agent uses this when something doesn't work to localise 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
 │  CLI layer (Typer)                                                       │
-│   src/slicer_cli/cli/                                                    │
+│   slicer_cli/cli/                                                        │
 │   - one module per group: scene.py, volume.py, render.py, dicom.py, ...  │
 │   - thin: parses flags → calls client method → formats output            │
 └─────────────────────────────────┬────────────────────────────────────────┘
@@ -514,7 +514,7 @@ Already shown in §7.3. Agent uses this when something doesn't work to localise 
                                   ▼
 ┌──────────────────────────────────────────────────────────────────────────┐
 │  Client layer (typed Python API)                                         │
-│   src/slicer_cli/client/                                                 │
+│   slicer_cli/client/                                                     │
 │     base.py           SlicerClient(httpx.Client)                         │
 │     scene.py          .list_nodes(class_), .clear_scene(confirm=True)    │
 │     volume.py         .list_volumes(), .export_volume(id), ...           │
