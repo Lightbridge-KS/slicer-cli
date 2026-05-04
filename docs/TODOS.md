@@ -5,7 +5,7 @@
 | Last updated | 2026-05-04 |
 | Plan | `/Users/kittipos/.claude/plans/glimmering-painting-lagoon.md` |
 | PRD | [`Slicer-CLI-PRD.md`](./Slicer-CLI-PRD.md) |
-| Status | **Phase 3 complete ✓ — 238 tests green (208 unit + 30 integration; live `markup line`, `exec --code`, and `gui layout` round-trips verified against running Slicer)** |
+| Status | **Phase 3 complete ✓ + codebase-org-1 refactor complete ✓ — 238 tests green (208 unit + 30 integration). `mrml`/`dicom`/`markup` are bundled domain subpackages; `cli/mrml/` flattened. Public surface preserved via `__init__.py` re-exports + `client/models.py` shim.** |
 
 ---
 
@@ -224,6 +224,17 @@
 - [x] User Manual: §4.8 (markup), §4.9 (formal exec + audit), §4.10 (gui), §5.8 (templated workflows + audit log), §5.9 (markup workflows), §5.10 (gui layout switching); status bumped to Phases 0–3 complete
 - [x] `src/slicer_cli/AGENTS.md`: documented audited POST funnel rule, AuditLogger pattern, `require_exec_enabled` gate
 - [x] `tests/AGENTS.md`: documented `audit_log_path` fixture pattern + `--i-understand-the-risk` gating-test pattern
+
+---
+
+## Refactoring — Codebase organization 1 ✓
+
+**Goal:** unify the layout of `client/` and `cli/` around a documented bundle-vs-flat threshold rule. No behavior change; public surface unchanged.
+
+- [x] Batch 1 — `output.py` → `cli/output.py`; `_internal/exec.py` → `exec_template.py`; `models/_base.py` → `_internal/models_base.py` (`22d8c3a`)
+- [x] Batch 2 — bundle `mrml`, `dicom`, `markup` as domain subpackages; inline `system`/`volume` models; dissolve `client/models/` (replaced by thin `client/models.py` shim) (`df76d4e`)
+- [x] Batch 3 — flatten `cli/mrml/`; helpers move to `cli/_internal/mrml_helpers.py`; commands move up to `cli/` (`633d93a`)
+- [x] Batch 4 — `src/slicer_cli/AGENTS.md`: rewritten architecture tree + added "Bundle-vs-flat threshold" load-bearing principle; updated `_internal/` rule and "Adding a new client method" pattern
 
 ---
 

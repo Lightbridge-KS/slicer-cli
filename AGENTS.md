@@ -26,7 +26,7 @@ For the *what* and *why*, not the *how*:
 - **Name:** `slicer-cli`
 - **Goal:** Agent-first CLI wrapper around 3D Slicer's HTTP server (`127.0.0.1:2016` by default).
 - **Primary language:** Python 3.11+ (managed by `uv`).
-- **Status:** Phases 0 + 1 + 2 + 3 complete (read/write + render + DICOMweb + markup + gated/audited `exec` + `gui layout` ship); Phase 4 (`doctor` extensions, alt-port discovery, MCP server) is next per `docs/TODOS.md`.
+- **Status:** Phases 0 + 1 + 2 + 3 complete (read/write + render + DICOMweb + markup + gated/audited `exec` + `gui layout` ship). Codebase-org-1 refactor landed: `mrml`/`dicom`/`markup` are bundled subpackages; `cli/mrml/` flattened; bundle-vs-flat threshold rule documented in `src/slicer_cli/AGENTS.md`. Phase 4 (`doctor` extensions, alt-port discovery, companion skill) is next per `docs/TODOS.md`.
 
 ## How to work in this repo
 
