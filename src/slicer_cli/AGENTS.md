@@ -96,13 +96,28 @@ When adding a new binary-content endpoint: pick the closest validator and use it
 
 ### Templated `/slicer/exec` payloads
 
-`client/_internal/exec.py::build_exec_payload(template, **kwargs)` is the **single insertion point** for every templated /exec call. Both `mrml.save_scene` and `dicom.pull_from_dicomweb` route through it. Phase 3's `exec` audit-log machinery (PRD §8.3) will wrap this one helper, NOT the call sites.
+Two cooperating helpers:
+
+- **`client/_internal/exec.py::build_exec_payload(template, **kwargs)`** templates a Python source string with `repr()`-quoted kwargs, returns bytes.
+- **`_HttpClient._post_exec(source, *, op_label)`** is the **single funnel** for every POST to `/slicer/exec`. It writes one audit-log line via `self._audit_logger` (if attached), THEN sends the POST.
+
+Every `/slicer/exec` caller MUST use `_post_exec` — never POST directly via `self._request("POST", "/slicer/exec", ...)`. As of Phase 3 the four current callers are `mrml.save_scene`, `dicom.pull_from_dicomweb`, `markup.add_line`, and `_HttpClient.run_python` (the public method behind `slicer-cli exec`). Adding a fifth caller? Just template + `_post_exec` — audit happens automatically.
 
 Two rules when authoring a template:
 1. **All kwargs get `repr()`-quoted before substitution** — defend against quote-escape attacks. User-supplied paths, UIDs, URLs, tokens cannot break Python syntax.
 2. **Use `{{` / `}}` for literal braces** in the rendered Python (e.g., the `__execResult` dict literal). Templates use `str.format` exactly once.
 
 The template MUST set `__execResult` to a JSON-serializable value — Slicer returns that as the response body.
+
+### Audit log
+
+`client/_internal/audit.py::AuditLogger` writes PRD §8.3-shaped lines to `~/.local/state/slicer-cli/exec.log` (configurable via `config.exec.audit_log`). Filesystem I/O lives only here — `_HttpClient` just *holds* an `AuditLogger | None` and calls `.log(...)` from `_post_exec`. The CLI factory `cli/_internal/context.py::CliContext.make_client(disable_audit=False)` constructs and injects a logger from config; callers that want to opt out (e.g. `exec --no-audit-log`) pass `disable_audit=True`.
+
+Tests should never touch the real `~/.local/state/...` — `tests/conftest.py` autouse-redirects to a per-test tmp dir; tests that want to *inspect* the audit output request the `audit_log_path` fixture.
+
+### Gating `slicer-cli exec` (formal command)
+
+`cli/_internal/safety.py::require_exec_enabled(config, *, override)` enforces `config.exec.enabled` for the user-invoked `exec` command only. Internal users (`save_scene`, `pull_from_dicomweb`, `add_line`) are vetted operations and bypass the gate — they're audited but not gated. The override flag is the verbose `--i-understand-the-risk` (locked Q-A in the Phase 3 plan; deliberately friction-y).
 
 ### DICOM JSON Model handling
 

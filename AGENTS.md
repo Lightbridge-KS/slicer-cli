@@ -26,7 +26,7 @@ For the *what* and *why*, not the *how*:
 - **Name:** `slicer-cli`
 - **Goal:** Agent-first CLI wrapper around 3D Slicer's HTTP server (`127.0.0.1:2016` by default).
 - **Primary language:** Python 3.11+ (managed by `uv`).
-- **Status:** Phases 0 + 1 + 2 complete (read/write + render + DICOMweb ship); Phase 3 (markup + formal `exec` + `gui layout`) is next per `docs/TODOS.md`.
+- **Status:** Phases 0 + 1 + 2 + 3 complete (read/write + render + DICOMweb + markup + gated/audited `exec` + `gui layout` ship); Phase 4 (`doctor` extensions, alt-port discovery, MCP server) is next per `docs/TODOS.md`.
 
 ## How to work in this repo
 

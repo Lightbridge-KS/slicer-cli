@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
+from slicer_cli.client._internal.audit import AuditLogger
 from slicer_cli.client.base import SlicerClient
 from slicer_cli.config import AppConfig, load_config
 from slicer_cli.output import OutputMode
@@ -17,12 +19,25 @@ class CliContext:
     config: AppConfig
     output_mode: OutputMode
 
-    def make_client(self) -> SlicerClient:
-        """Build a SlicerClient with config-derived defaults."""
+    def make_client(self, *, disable_audit: bool = False) -> SlicerClient:
+        """Build a SlicerClient with config-derived defaults.
+
+        By default attaches an AuditLogger built from `config.exec.audit_log`
+        so every internal `/slicer/exec` POST is audited (mrml.save_scene,
+        dicom.pull_from_dicomweb, markup.add_line, formal exec). Pass
+        `disable_audit=True` to opt out (used by `slicer-cli exec --no-audit-log`).
+        """
+        audit_logger = None if disable_audit else self.make_audit_logger()
         return SlicerClient(
             url=self.config.server.url,
             timeout=self.config.server.timeout_seconds,
+            audit_logger=audit_logger,
         )
+
+    def make_audit_logger(self) -> AuditLogger:
+        """Construct an AuditLogger from `config.exec.audit_log` (path expanded)."""
+        path = Path(self.config.exec.audit_log).expanduser()
+        return AuditLogger(path=path)
 
 
 def build_context(

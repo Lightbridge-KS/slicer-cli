@@ -17,6 +17,7 @@ from typing import Any, Self, TypeVar
 import httpx
 from pydantic import BaseModel
 
+from slicer_cli.client._internal.audit import AuditLogger
 from slicer_cli.client.errors import (
     SlicerBadResponseError,
     SlicerHttpError,
@@ -27,6 +28,7 @@ from slicer_cli.client.errors import (
 
 DEFAULT_TIMEOUT_S: float = 30.0
 DEFAULT_URL: str = "http://127.0.0.1:2016"
+EXEC_ENDPOINT: str = "/slicer/exec"
 
 _M = TypeVar("_M", bound=BaseModel)
 
@@ -40,11 +42,13 @@ class _HttpClient:
         *,
         timeout: float = DEFAULT_TIMEOUT_S,
         client: httpx.Client | None = None,
+        audit_logger: AuditLogger | None = None,
     ) -> None:
         self.url = url.rstrip("/")
         self.timeout = timeout
         self._client = client or httpx.Client(base_url=self.url, timeout=timeout)
         self._owns_client = client is None
+        self._audit_logger = audit_logger
 
     def __enter__(self) -> Self:
         return self
@@ -93,6 +97,36 @@ class _HttpClient:
                 endpoint=path,
             )
         return response
+
+    def _post_exec(self, source: bytes, *, op_label: str) -> httpx.Response:
+        """Single funnel for every POST to `/slicer/exec`.
+
+        Writes one audit-log line via `self._audit_logger` (if set), THEN sends
+        the POST. Audit-before-send so a successful audit precedes the actual
+        side-effect; if Slicer crashes mid-call, we still know what was
+        attempted.
+
+        All four `/slicer/exec` callers (`mrml.save_scene`,
+        `dicom.pull_from_dicomweb`, `markup.add_line`, formal exec) MUST
+        route through this method so the audit log is the single insertion
+        point per PRD section 8.3.
+        """
+        if self._audit_logger is not None:
+            self._audit_logger.log(source, url=self.url, op_label=op_label)
+        return self._request("POST", EXEC_ENDPOINT, content=source)
+
+    def run_python(self, source: str | bytes, *, op_label: str = "cli.exec") -> Any:
+        """POST `/slicer/exec` via the audited funnel; return the parsed `__execResult`.
+
+        This is the public entry point for the formal `slicer-cli exec` command
+        and any library caller that wants raw remote-Python access. Internal
+        users (mrml.save_scene, dicom.pull_from_dicomweb, markup.add_line)
+        own their templates; they call `_post_exec` directly with the
+        already-built body.
+        """
+        body = source.encode("utf-8") if isinstance(source, str) else source
+        response = self._post_exec(body, op_label=op_label)
+        return self._parse_json(response, endpoint=EXEC_ENDPOINT)
 
     @staticmethod
     def _parse_json(response: httpx.Response, *, endpoint: str) -> Any:

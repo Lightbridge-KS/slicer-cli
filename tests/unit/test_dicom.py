@@ -330,6 +330,34 @@ def test_dicom_pull_happy_path(runner: CliRunner) -> None:
     assert f"'{_TEST_STUDY_UID}'" in sent
 
 
+def test_dicom_pull_writes_audit_log_line(runner: CliRunner, audit_log_path: Path) -> None:
+    """Phase 3: every `/slicer/exec` POST now lands one line in the audit log."""
+    with respx.mock(base_url="http://127.0.0.1:2016") as mock:
+        mock.post("/slicer/exec").mock(
+            return_value=Response(200, json={"imported_count": 1, "study_uid": "X"})
+        )
+        result = runner.invoke(
+            app,
+            [
+                "--json",
+                "dicom",
+                "pull",
+                "--orthanc",
+                "http://localhost:8042",
+                "--study",
+                "X",
+            ],
+        )
+
+    assert result.exit_code == 0, result.stderr
+    assert audit_log_path.is_file()
+    line = audit_log_path.read_text().rstrip("\n")
+    assert "\n" not in line
+    assert "op=dicom.pull_from_dicomweb" in line
+    assert "url=http://127.0.0.1:2016" in line
+    assert "hash=sha256:" in line
+
+
 def test_dicom_pull_explicit_store(runner: CliRunner) -> None:
     """User-supplied --store is appended to --orthanc as a subpath."""
     with respx.mock(base_url="http://127.0.0.1:2016") as mock:

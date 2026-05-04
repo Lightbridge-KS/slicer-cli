@@ -20,6 +20,8 @@ from __future__ import annotations
 
 from slicer_cli.client._internal.http import DEFAULT_TIMEOUT_S, DEFAULT_URL
 from slicer_cli.client.dicom import DicomMixin
+from slicer_cli.client.gui import GuiMixin
+from slicer_cli.client.markup import MarkupMixin
 from slicer_cli.client.mrml import LOAD_FILETYPES, MrmlMixin
 from slicer_cli.client.raw import RawMixin
 from slicer_cli.client.render import RenderMixin
@@ -35,6 +37,8 @@ class SlicerClient(
     SampleMixin,
     RenderMixin,
     DicomMixin,
+    MarkupMixin,
+    GuiMixin,
     RawMixin,
 ):
     """Typed Slicer HTTP client. Use as a context manager or call .close().

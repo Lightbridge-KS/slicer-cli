@@ -14,6 +14,7 @@ from slicer_cli.cli import (
     dicom as dicom_cli,
     doctor as doctor_cli,
     exec_ as exec_cli,
+    gui as gui_cli,
     render as render_cli,
     status as status_cli,
     system as system_cli,
@@ -49,6 +50,7 @@ app.add_typer(render_cli.app, name="render")
 app.add_typer(markup_cli.app, name="markup")
 app.add_typer(dicom_cli.app, name="dicom")
 app.add_typer(exec_cli.app, name="exec")
+app.add_typer(gui_cli.app, name="gui")
 app.add_typer(api_cli.app, name="api")
 app.add_typer(config_cli.app, name="config")
 

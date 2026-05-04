@@ -5,7 +5,7 @@
 | Last updated | 2026-05-04 |
 | Plan | `/Users/kittipos/.claude/plans/glimmering-painting-lagoon.md` |
 | PRD | [`Slicer-CLI-PRD.md`](./Slicer-CLI-PRD.md) |
-| Status | **Phase 2 complete ✓ — 199 tests green (173 unit + 26 integration; full Orthanc round-trip verified live against developer's local CXR fixture)** |
+| Status | **Phase 3 complete ✓ — 238 tests green (208 unit + 30 integration; live `markup line`, `exec --code`, and `gui layout` round-trips verified against running Slicer)** |
 
 ---
 
@@ -184,25 +184,46 @@
 
 ---
 
-## Phase 3 — Markup + exec + gui
+## Phase 3 — Markup + exec + gui ✓
 
 **Goal:** Templated `/exec`-backed markups; gated `exec` with audit log.
 
-- [ ] `markup list [--type fiducial|line|...]`
-- [ ] `markup fiducial-set --id ID --index N --r R --a A --s S` (PUT `/slicer/fiducial`)
-- [ ] `markup line --p1 R,A,S --p2 R,A,S [--name N]` (templated `/exec`)
-- [ ] `exec --code '...'` / `exec --file path.py`
-- [ ] Audit log writer at `~/.local/state/slicer-cli/exec.log` (mkdir parents on first write)
-- [ ] Audit-log line format: `<iso8601>  rev=<rev>  url=<url>  hash=sha256:<hex>  preview="<first 200 chars>"`
-- [ ] `--no-audit-log` flag emits stderr warning but still proceeds (YOLO honours it)
-- [ ] `gui layout fourup|oneup3d|... [--contents full|viewers]` (PUT `/slicer/gui`)
-- [ ] Unit tests including audit-log assertions
-- [ ] Integration tests
+**Plan file:** `~/.claude/plans/glimmering-painting-lagoon.md` (3 batches)
 
-### Cross-cutting
+### Batch 1 — Audit infrastructure ✓
 
-- [ ] Update User Manual for AI Agent and Human at `docs/Slicer-CLI-UserManual.md` 
-- [ ] Update relevant AGENTS.md 
+- [x] `client/_internal/audit.py::AuditLogger` — PRD §8.3 line format with `rev`, `url`, `hash`, `preview`, `op` (mkdir parents on first write)
+- [x] Audit-log line format: `<iso8601>  rev=<rev>  url=<url>  hash=sha256:<hex>  preview="<first 200 chars>"  op=<label>`
+- [x] `_HttpClient.audit_logger` kwarg + `_post_exec(source, *, op_label)` funnel — single insertion point for all `/slicer/exec` POSTs
+- [x] `mrml.save_scene` and `dicom.pull_from_dicomweb` retroactively routed through the audited funnel (audit happens automatically)
+- [x] `tests/conftest.py` autouse-redirects audit writes to per-session tmp dir; `audit_log_path` fixture for tests that inspect output
+- [x] 8 new unit tests for `AuditLogger` (format, mkdir, append, permission errors); 1 dicom-pull audit assertion
+
+### Batch 2 — Markup commands ✓
+
+- [x] `markup list [--type fiducial|segmentation]` (merged view by default; per-type for full detail)
+- [x] `markup fiducial-set --id ID --index N --r R --a A --s S` (PUT `/slicer/fiducial`; refuses empty id)
+- [x] `markup line --p1 R,A,S --p2 R,A,S [--name N]` (templated `/slicer/exec`; audited via the funnel)
+- [x] `MarkupMixin` + `models/markup.py` (`FiducialNode`, `SegmentationNode`, `MarkupRef`, `LineMarkupResult`)
+- [x] `_render_markup_list` renderer in `output.py`
+- [x] 13 unit tests + integration test (live `markup line` create + `node delete` cleanup)
+
+### Batch 3 — Formal exec + gui layout + cross-cutting ✓
+
+- [x] `exec --code '...'` / `exec --file path.py` via `_HttpClient.run_python` (audited)
+- [x] `--no-audit-log` flag emits stderr warning but still proceeds (YOLO honours it)
+- [x] `--i-understand-the-risk` flag required when `config.exec.enabled = false`
+- [x] `cli/_internal/safety.py::require_exec_enabled(config, *, override)` gate
+- [x] `gui layout LAYOUT [--contents full|viewers]` (PUT `/slicer/gui`); `GuiMixin` + `_render_gui_layout`
+- [x] `_render_exec_result` renderer (k=v fallback for ad-hoc Slicer payloads)
+- [x] `render_warning(...)` helper in `output.py` for the `--no-audit-log` stderr line
+- [x] 13 new unit tests (`test_gui.py`, `test_exec_command.py`); 2 integration tests (formal-exec round-trip, `gui layout` switch+restore)
+
+### Cross-cutting ✓
+
+- [x] User Manual: §4.8 (markup), §4.9 (formal exec + audit), §4.10 (gui), §5.8 (templated workflows + audit log), §5.9 (markup workflows), §5.10 (gui layout switching); status bumped to Phases 0–3 complete
+- [x] `src/slicer_cli/AGENTS.md`: documented audited POST funnel rule, AuditLogger pattern, `require_exec_enabled` gate
+- [x] `tests/AGENTS.md`: documented `audit_log_path` fixture pattern + `--i-understand-the-risk` gating-test pattern
 
 ---
 

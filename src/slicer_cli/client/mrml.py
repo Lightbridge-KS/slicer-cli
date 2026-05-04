@@ -154,10 +154,10 @@ class MrmlMixin(_HttpClient):
         """Save the entire MRML scene to `path`.
 
         Slicer's WebServer has no native "save scene" endpoint, so we route
-        through `client._exec.build_exec_payload` to template a small
-        `slicer.util.saveScene` call. Phase 3 will gate this through the
-        formal `exec` audit-log machinery (PRD §8.3) — the central
-        `build_exec_payload` helper is the single insertion point.
+        through the audited `_post_exec` funnel with a templated
+        `slicer.util.saveScene` payload. The audit log records every
+        invocation per PRD §8.3 when the client is constructed with an
+        `AuditLogger`.
         """
         if not path.strip():
             raise SlicerBadInputError("path must not be empty")
@@ -168,7 +168,7 @@ class MrmlMixin(_HttpClient):
             "__execResult = {{'saved': bool(saved), 'path': {path}}}\n"
         )
         body = build_exec_payload(template, path=path)
-        response = self._request("POST", endpoint, content=body)
+        response = self._post_exec(body, op_label="mrml.save_scene")
         data = self._parse_json(response, endpoint=endpoint)
         if not isinstance(data, dict):
             raise SlicerBadResponseError(

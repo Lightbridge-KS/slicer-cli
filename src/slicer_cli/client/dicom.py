@@ -183,7 +183,7 @@ class DicomMixin(_HttpClient):
             study_uid=cleaned_study,
             access_token=access_token,
         )
-        response = self._request("POST", endpoint, content=body)
+        response = self._post_exec(body, op_label="dicom.pull_from_dicomweb")
         data = self._parse_json(response, endpoint=endpoint)
         if not isinstance(data, dict):
             raise SlicerBadResponseError(

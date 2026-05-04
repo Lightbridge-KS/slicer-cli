@@ -96,3 +96,13 @@ Two layers of gating because `pytest -m integration` *selects* by marker, but a 
 - **Templated `/slicer/exec` payload tests must NOT run the rendered Python.** Use `ast.parse(rendered_source)` to confirm syntactic validity only; never evaluate the templated body — both because real evaluation would need Slicer's runtime AND because pre-commit hooks flag the relevant builtins. See `tests/unit/test_exec.py` for the parse-only pattern.
 - **DICOM JSON fixtures should mirror PS3.18 §F shape.** Tag values are dicts: `{"vr": "...", "Value": [...]}`. PN values are objects: `{"Alphabetic": "..."}`. Empty / missing tags are common in the wild — `tests/unit/test_dicom_tags.py` covers the absence cases. When mocking QIDO endpoints, use the `_TEST_*` fixture shape from `test_dicom.py` as a starting point (synthetic data only — names, IDs, and UIDs in unit fixtures must never be real PHI; UIDs use the reserved `2.25.*` root per DICOM PS3.5 §B.2). Real DICOM UIDs for live integration tests are read from gitignored `tests/integration/.env` — see `.env.example`.
 - **Orthanc round-trip integration tests should `pytest.skip` if the prerequisite (`dicom pull`) fails.** Slicer's `/slicer/exec` may be disabled in some environments; the test should detect `E_HTTP_5XX` from the pull and skip rather than asserting on downstream state. See `test_dicom_live.py::test_dicom_pull_then_query_round_trip` for the pattern.
+- **Audit log writes are autouse-redirected to a tmp dir** by `tests/conftest.py::_redirect_audit_log_to_tmp` so unit tests don't litter `~/.local/state/slicer-cli/exec.log`. To *inspect* the audit output in a test, request the `audit_log_path: Path` fixture — it overrides the autouse redirect with a per-test path and returns it. Pattern (see `tests/unit/test_markup.py::test_markup_line_happy_path_writes_audit`):
+
+    ```python
+    def test_my_exec_caller_writes_audit(runner, audit_log_path):
+        ...invoke...
+        assert "op=mymodule.myop" in audit_log_path.read_text()
+    ```
+
+  For tests that exercise `--no-audit-log`, request the same fixture and assert `not audit_log_path.exists()` after the call (`tests/unit/test_exec_command.py::test_exec_no_audit_log_skips_audit_and_warns`).
+- **`--i-understand-the-risk` gating** is tested with `monkeypatch.setenv("SLICER_EXEC_ENABLED", "false")`. Without the override, `slicer-cli exec` returns `E_EXEC_DISABLED` (exit 5); with it, the call proceeds. Do NOT mutate `cli_ctx.config` directly — go through env so the layered loader runs.

@@ -14,7 +14,9 @@ from __future__ import annotations
 from slicer_cli.client.errors import (
     SlicerDestructiveError,
     SlicerEmptySelectorError,
+    SlicerExecDisabledError,
 )
+from slicer_cli.config import ExecConfig
 
 
 def require_confirm(value: bool, op: str, *, flag: str = "--confirm") -> None:
@@ -38,3 +40,16 @@ def require_nonempty_id(node_id: str | None) -> str:
     if not cleaned:
         raise SlicerEmptySelectorError()
     return cleaned
+
+
+def require_exec_enabled(config: ExecConfig, *, override: bool) -> None:
+    """Gate the user-facing `slicer-cli exec` command.
+
+    When `config.exec.enabled` is False, the call is refused (E_EXEC_DISABLED)
+    unless the user explicitly passed `--i-understand-the-risk`. The override
+    flag is intentionally long and friction-y per Q-A in the Phase 3 plan.
+    Internal users (mrml.save_scene, dicom.pull_from_dicomweb, markup.add_line)
+    bypass this gate — they are vetted operations.
+    """
+    if not config.enabled and not override:
+        raise SlicerExecDisabledError()

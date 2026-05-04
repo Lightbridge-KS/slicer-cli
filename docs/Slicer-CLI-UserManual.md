@@ -1,8 +1,8 @@
 # `slicer-cli` — User Manual
 
 > Audience: **AI agents (primary)** and humans (secondary).
-> Scope: everything that ships in **Phase 1 + Phase 2** (core read/write + render + DICOMweb).
-> Status: 2026-05-04 — Phases 0–2 complete; Phase 3 features (markup, formal `exec`, `gui layout`) are stubs that emit `E_NOT_IMPLEMENTED` until that phase lands.
+> Scope: everything that ships in **Phases 1 + 2 + 3** (core read/write + render + DICOMweb + markup + formal exec + gui layout + audit log).
+> Status: 2026-05-04 — Phases 0–3 complete.
 
 This is a working manual, not a tutorial — it is meant to be skimmed by an
 agent on first contact and used as a lookup table afterward. If a section
@@ -194,9 +194,30 @@ queries. Use `dicom pull` to populate the DB from a remote DICOMweb peer
 |---|---|
 | `slicer-cli api raw <method> <path> [--query K=V ...] [--body @file] [--out path] [--confirm]` | Issue an arbitrary HTTP call. JSON responses are parsed into the envelope; non-JSON requires `--out`. Destructive `(method, path)` pairs (per `routes.DESTRUCTIVE_RAW`) require `--confirm`. |
 
-### 4.8 Stubs (Phase 3, return `E_NOT_IMPLEMENTED` for now)
+### 4.8 Markup (Phase 3)
 
-`markup list/fiducial-set/line/...` (Phase 3), `exec` (Phase 3 — the formal command, with audit log), `gui layout` (Phase 3).
+| Command | Description |
+|---|---|
+| `slicer-cli markup list [--type fiducial|segmentation]` | List markup nodes. With no `--type`, returns merged fiducials + segmentations (one row per node, with a `kind` discriminator). |
+| `slicer-cli markup fiducial-set --id NODE_ID --index N --r R --a A --s S` | Set the position of one fiducial control point (PUT `/slicer/fiducial`). Refuses empty `--id`. |
+| `slicer-cli markup line --p1 R,A,S --p2 R,A,S [--name N]` | Create a `vtkMRMLMarkupsLineNode` between two RAS points. Lines have no native endpoint — this routes through templated `/slicer/exec` and writes one audit-log line per call. |
+
+### 4.9 Formal exec (Phase 3, gated + audited)
+
+| Command | Description |
+|---|---|
+| `slicer-cli exec --code 'python source'` | POST source to `/slicer/exec`. The source MUST set `__execResult` to a JSON-serializable value — Slicer returns that as the response body. |
+| `slicer-cli exec --file path/to/script.py` | Same as `--code` but reads the source from a file. |
+| `slicer-cli exec ... --no-audit-log` | Skip writing the audit-log line (emits a stderr warning). Use sparingly. |
+| `slicer-cli exec ... --i-understand-the-risk` | Required when `config.exec.enabled = false`. The flag is intentionally long and friction-y (PRD §8.3). |
+
+The audit log lives at `~/.local/state/slicer-cli/exec.log` (override via `config.exec.audit_log`); see §5.8.
+
+### 4.10 GUI layout (Phase 3)
+
+| Command | Description |
+|---|---|
+| `slicer-cli gui layout LAYOUT [--contents full|viewers]` | PUT `/slicer/gui` to switch viewer layout. `LAYOUT` is pass-through (Slicer 5.x: `fourup`, `oneup3d`, `conventionalwidescreen`, `compareview`, …). `--contents viewers` hides GUI chrome. |
 
 ---
 
@@ -383,6 +404,94 @@ against the manually-imported data).
 about `dicomWebEndpoint` or `accessToken` — your Slicer build's
 `DICOMUtils.importFromDICOMWeb` has a different signature. Run
 `slicer-cli api raw POST /slicer/exec --body '@-' --confirm <<<'help(__import__("DICOMLib").DICOMUtils.importFromDICOMWeb)'` to inspect the actual API.
+
+### 5.8 Templated `exec` and the audit log (Phase 3)
+
+`slicer-cli exec` POSTs Python source to `/slicer/exec` and returns the
+parsed `__execResult`. **Every successful invocation lands one line in
+`~/.local/state/slicer-cli/exec.log`** (configurable via
+`config.exec.audit_log`) — including internal users like
+`mrml.save_scene`, `dicom.pull_from_dicomweb`, and `markup.line`. PRD §8.3
+defines the line shape; one line per call, append-only:
+
+```
+2026-05-04T19:42:11Z  rev=ef05a7c  url=http://127.0.0.1:2016  hash=sha256:1a2b…  preview="<first 200 chars>"  op=cli.exec
+```
+
+```bash
+# Inline source (one-shot REPL).
+slicer-cli --json exec --code 'import slicer; __execResult = slicer.app.applicationVersion'
+# → {"ok": true, "result": "5.11.0-..."}
+
+# Run a script file.
+cat > /tmp/macro.py <<'EOF'
+import slicer
+n = slicer.mrmlScene.GetNumberOfNodes()
+__execResult = {"node_count": n}
+EOF
+slicer-cli --json exec --file /tmp/macro.py | jq .
+
+# Inspect the audit trail.
+tail -5 ~/.local/state/slicer-cli/exec.log
+```
+
+**Gating.** When `config.exec.enabled = true` (the YOLO default), `exec`
+runs unconditionally. Set `SLICER_EXEC_ENABLED=false` (or
+`exec.enabled = false` in `config.toml`) to require an explicit override
+flag per call:
+
+```bash
+SLICER_EXEC_ENABLED=false slicer-cli exec --code 'x = 1'
+# → E_EXEC_DISABLED, exit 5
+
+SLICER_EXEC_ENABLED=false slicer-cli exec --code 'x = 1' --i-understand-the-risk
+# → proceeds + writes audit line
+```
+
+The override is intentionally long and friction-y so it doesn't become a
+muscle-memory habit (PRD §8.3 lock).
+
+**`--no-audit-log`** is the rare opt-out: emits a stderr warning, skips
+the audit write, but still proceeds. Use only when the audit log itself
+is unwritable (CI sandbox, ENOSPC) — never to hide an action.
+
+### 5.9 Markup workflows (Phase 3)
+
+```bash
+# List everything in the scene (fiducials + segmentations merged).
+slicer-cli --json markup list \
+  | jq '.markups[] | {kind, name, id, extra}'
+
+# Filter to fiducials only — gives the full per-point detail.
+slicer-cli --json markup list --type fiducial \
+  | jq '.markups[] | {name, id, scale, point_count, points}'
+
+# Move the first control point of fiducial F1 by passing absolute RAS coords.
+slicer-cli --json markup fiducial-set --id F1 --index 0 --r 12 --a -3 --s 5
+
+# Build a line markup between two RAS points (templated /exec; audited).
+slicer-cli --json markup line \
+  --p1 0,0,0 --p2 50,0,0 --name "AgentBaseline" \
+  | jq '{id, length_mm}'
+# → {"id": "vtkMRMLMarkupsLineNode1", "length_mm": 50.0}
+```
+
+Lines, angles, curves, planes, and ROIs all share the same template-via-`/exec`
+pattern (Slicer surface report §6.5 — they have no native HTTP endpoint).
+
+### 5.10 GUI layout switching (Phase 3)
+
+```bash
+# Switch to single 3D viewer; hide GUI chrome.
+slicer-cli --json gui layout oneup3d --contents viewers
+
+# Restore the default four-up.
+slicer-cli --json gui layout fourup --contents full
+```
+
+Layout names depend on Slicer's build (5.11 ships `fourup`, `oneup3d`,
+`conventionalwidescreen`, `compareview`, etc.). Slicer returns
+`{"success": true}` on a known name; an unknown name surfaces as 4xx.
 
 ---
 

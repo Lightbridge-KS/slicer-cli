@@ -12,15 +12,29 @@ from __future__ import annotations
 
 from slicer_cli.client.models._base import _SlicerModel
 from slicer_cli.client.models.dicom import InstanceRef, SeriesRef, StudyRef
+from slicer_cli.client.models.markup import (
+    FiducialNode,
+    FiducialPoint,
+    LineMarkupResult,
+    MarkupRef,
+    MarkupType,
+    SegmentationNode,
+)
 from slicer_cli.client.models.mrml import DeleteResult, LoadResult, NodeRef
 from slicer_cli.client.models.system import SystemVersion
 from slicer_cli.client.models.volume import Volume
 
 __all__ = [
     "DeleteResult",
+    "FiducialNode",
+    "FiducialPoint",
     "InstanceRef",
+    "LineMarkupResult",
     "LoadResult",
+    "MarkupRef",
+    "MarkupType",
     "NodeRef",
+    "SegmentationNode",
     "SeriesRef",
     "StudyRef",
     "SystemVersion",
