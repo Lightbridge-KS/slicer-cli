@@ -11,19 +11,32 @@ src/slicer_cli/
 │   ├── app.py                    ← root Typer + global flags + main()
 │   ├── _internal/                ← scaffolding (not part of the public surface)
 │   │   ├── context.py            ← CliContext + build_context (typer.Context.obj)
+│   │   ├── safety.py             ← require_confirm, require_nonempty_id
 │   │   ├── stub.py               ← `stub(ctx, what, phase=...)` → E_NOT_IMPLEMENTED
 │   │   └── argv.py               ← hoist_global_flags() — lifts --json/--url etc. before the verb
 │   ├── status.py, doctor.py      ← top-level commands (not under any group)
 │   ├── system.py, config.py      ← app-level groups (system, the CLI's own config)
-│   ├── api.py, dicom.py,         ← independent groups (api raw/routes, DICOMweb)
+│   ├── api.py, dicom.py,         ← independent groups (api raw/routes, DICOMweb, render, exec)
 │   │   render.py, exec_.py
-│   └── mrml/                     ← MRML-flavored commands cluster (share _helpers.py in Phase 1+)
-│       ├── _helpers.py           ← empty-selector / class-filter / node-table helpers
+│   └── mrml/                     ← MRML-flavored commands cluster (share _helpers.py)
+│       ├── _helpers.py           ← class-filter / node-table helpers
 │       ├── scene.py, node.py
 │       ├── volume.py, sample.py
 │       └── markup.py
 ├── client/                       ← typed Python API for Slicer. Reusable on its own
 │                                   (a future MCP server will import this directly).
+│   ├── _http.py                  ← `_HttpClient` parent: httpx state + error mapping
+│   ├── _validators.py            ← validate_png / validate_binary (binary-content gates)
+│   ├── _exec.py                  ← build_exec_payload (templated /slicer/exec — Phase 3 gate)
+│   ├── _id_helpers.py            ← MRML id ↔ class derivation
+│   ├── _dicom_tags.py            ← DICOM JSON Model tag IDs + extraction helpers
+│   ├── base.py                   ← `SlicerClient` composes per-domain mixins
+│   ├── system.py, mrml.py,       ← per-domain mixins (each extends _HttpClient)
+│   │   volume.py, sample.py,
+│   │   render.py, dicom.py, raw.py
+│   ├── routes.py                 ← Route inventory (data file) — Route has `note` for caveats
+│   ├── models.py                 ← Pydantic response models
+│   └── errors.py                 ← SlicerError hierarchy + stable E_* codes
 ├── config.py                     ← layered config loader (flag > env > project > user > built-in).
 └── output.py                     ← the *only* place stdout/stderr writes happen.
 ```
@@ -60,11 +73,46 @@ Then:
 
 ### Adding a new client method
 
-1. New endpoint? Add the route to `client/routes.py` with the right `phase`, `destructive`, and `stub` flags. `api routes` and `api raw`'s destructive guard read it directly.
-2. Add a typed method to `SlicerClient` (or a dedicated `client/<topic>.py` if the topic has multiple methods).
-3. Define a pydantic response model in `client/models.py` if the response is structured.
-4. Map any new failure modes to a `SlicerError` subclass in `client/errors.py` with a fresh `ErrorCode`.
-5. If the endpoint is destructive (mutates scene state, shuts Slicer down, runs arbitrary code), the *client* method itself must refuse empty/missing selectors — defence-in-depth above the CLI guard. See `SlicerClient.delete_node` for the pattern.
+1. New endpoint? Add the route to `client/routes.py` with the right `phase`, `destructive`, and `stub` flags. The optional `note: str | None` field is for Slicer-side bugs or CLI workarounds (e.g., `accessDICOMwebStudy` is bypassed via `/exec`). `api routes` and `api raw`'s destructive guard read it directly.
+2. **Pick the right mixin file.** `client/system.py`, `mrml.py`, `volume.py`, `sample.py`, `render.py`, `dicom.py`, `raw.py` are per-domain mixins extending `_HttpClient`. New endpoint group? New file with `class <Topic>Mixin(_HttpClient)`. Add it to `SlicerClient`'s parents list in `client/base.py`.
+3. Define a pydantic response model in `client/models.py` if the response is structured. All models extend `_SlicerModel` which has `extra="ignore", frozen=True, populate_by_name=True` — keep it that way.
+4. Map any new failure modes to a `SlicerError` subclass in `client/errors.py` with a fresh `ErrorCode`. **Never reuse codes** across semantically-different failures — codes are public API.
+5. If the endpoint is destructive (mutates scene state, shuts Slicer down, runs arbitrary code), the *client* method itself must refuse empty/missing selectors — defence-in-depth above the CLI guard. See `MrmlMixin.delete_node` for the pattern.
+
+### Validating binary responses (PNG / glTF / DICOM)
+
+`client/_validators.py` holds shared response gates:
+
+- `validate_png(content, *, endpoint)` — magic bytes + size ≥ 256 + non-zero IHDR width/height. Raises `SlicerBadResponseError` with a hint that **literally contains `GALLIUM_DRIVER=llvmpipe`** (PRD §14 R3 — agents copy-paste it). Used by all 3 PNG render methods AND `cli/doctor.py:_probe_render` (single source of truth — don't re-implement the magic-byte check inline).
+- `validate_binary(content, *, endpoint, min_bytes)` — generic non-empty guard for endpoints without a known magic header (e.g., glTF, where Slicer may return JSON or `.glb` depending on build).
+
+When adding a new binary-content endpoint: pick the closest validator and use it; only add a new validator function here if you have ≥ 2 callers.
+
+### Templated `/slicer/exec` payloads
+
+`client/_exec.py::build_exec_payload(template, **kwargs)` is the **single insertion point** for every templated /exec call. Both `mrml.save_scene` and `dicom.pull_from_dicomweb` route through it. Phase 3's `exec` audit-log machinery (PRD §8.3) will wrap this one helper, NOT the call sites.
+
+Two rules when authoring a template:
+1. **All kwargs get `repr()`-quoted before substitution** — defend against quote-escape attacks. User-supplied paths, UIDs, URLs, tokens cannot break Python syntax.
+2. **Use `{{` / `}}` for literal braces** in the rendered Python (e.g., the `__execResult` dict literal). Templates use `str.format` exactly once.
+
+The template MUST set `__execResult` to a JSON-serializable value — Slicer returns that as the response body.
+
+### DICOM JSON Model handling
+
+`client/_dicom_tags.py` (NOT inside `client/dicom.py`) holds tag constants + extraction helpers (`dicom_tag_value`, `dicom_value_list`, `dicom_person_name`, `coerce_int`). Lives next to `models.py` so `output.py` can import it for pretty-rendering without crossing the cli → client boundary.
+
+Pattern for new DICOM-shaped models:
+
+```python
+class FooRef(_SlicerModel):
+    foo_uid: str                    # always-present "key"
+    common_field_1: str | None = None   # flatten the most useful tags
+    common_field_2: int | None = None
+    raw: dict[str, Any]             # ALWAYS preserve the full DICOM JSON blob
+```
+
+Power-tool callers can read `.raw["00100010"]` etc. for exotic tags; everyone else uses the friendly fields.
 
 ### Adding a new `doctor` probe
 
@@ -98,3 +146,5 @@ When you split, mirror the `mrml/` shape: `cli/<group>/__init__.py` (registers T
 - **Substring routing in Slicer is positionally fragile** (PRD §4.1, surface report §4.1). Always send full canonical paths from the client. Never let a user-supplied path reach `/slicer/...` outside `api raw` (Phase 1).
 - **Empty selectors on `DELETE /slicer/mrml` clear the whole scene** (surface report §4.1, PRD §8.1). Any client method that builds `/mrml`-shaped URLs must refuse empty selectors at the *client* layer, not just the CLI layer.
 - **Aliased imports get split by ruff isort by default.** We set `combine-as-imports = true` in `pyproject.toml` so `from slicer_cli.cli import (a as a_cli, b as b_cli, ...)` stays grouped. If you add new aliased imports, keep the same shape.
+- **Some Slicer endpoints have known bugs.** Surface report §8 catalogues them; `client/routes.py` flags them with `note=`. The canonical example is `/slicer/accessDICOMwebStudy` — its handler does `request = json.loads(...), b"application/json"` (a tuple) and crashes on `request["dicomWEBPrefix"]`. The CLI bypasses by templating /exec; `api routes --json` exposes the note so agents see the hazard. Add new `note=` entries when wrapping any endpoint with a known footgun.
+- **`/slicer/threeDGraphics` returns JSON glTF, not binary `.glb`** in Slicer 5.11 — despite its content-type and the surface report calling it "binary geometry stream". Use `validate_binary(min_bytes=1024)` (no magic-byte check) for this endpoint. Don't try to be clever about glTF format detection.

@@ -9,7 +9,9 @@ Read [`/AGENTS.md`](../AGENTS.md) first for project-wide context; this file adds
 tests/
 ├── conftest.py            shared fixtures (currently: `runner`, `slicer_app`)
 ├── unit/                  hermetic, fast. respx mocks Slicer. No network.
-└── integration/           hits real Slicer. Gated on SLICER_INTEGRATION=1.
+└── integration/           hits real Slicer (and optionally Orthanc).
+    ├── conftest.py        autouse Orthanc-probe + skip fixture
+    └── test_*_live.py     feature-named files (NOT `test_phaseN_*`)
 ```
 
 Run them with:
@@ -18,6 +20,11 @@ Run them with:
 uv run pytest -m "not integration"        # unit only (default for CI)
 SLICER_INTEGRATION=1 uv run pytest        # both — needs Slicer running with WebServer started
 ```
+
+Tests marked `@pytest.mark.requires_orthanc` additionally need a local
+Orthanc with the DICOMweb plugin at `http://localhost:8042`. They skip
+cleanly otherwise (autouse fixture in `tests/integration/conftest.py`),
+so you don't need to install Orthanc to run the suite.
 
 ## Patterns
 
@@ -85,3 +92,7 @@ Two layers of gating because `pytest -m integration` *selects* by marker, but a 
 - **`api raw` against a destructive `(method, path)` requires `--confirm`** (read from `client.routes.DESTRUCTIVE_RAW`). When testing happy-path `api raw` calls that hit destructive routes (`POST /slicer/exec`, `DELETE /slicer/mrml`, `DELETE /slicer/system`), pass `--confirm` in the args or the test fails with "RESPX: some routes were not called!".
 - **Integration tests against destructive ops must never touch the user's session.** The pattern in `test_destructive_live.py` is: capture `scene ids` before, run a `sample load` of a *distinct* sample, capture `scene ids` after, and only `node delete` the *new* ids. Never call `scene clear` or `system shutdown` against live Slicer — only verify their `--confirm` guard fires.
 - **Doctor's "down Slicer" test simulates failure with `respx ... .mock(side_effect=httpx.ConnectError(...))`** rather than absence-of-mock — the latter raises `RESPX: an unmocked request was made`, the former propagates a real `ConnectError` that the client maps to `E_NOT_RUNNING` so each probe degrades cleanly.
+- **PNG fixture bytes must look like a real PNG to `validate_png`.** The validator checks magic + size >= 256 + IHDR width/height non-zero. Use the `_make_png(width, height, body_size)` helper in `test_render.py` / `test_doctor.py` to synthesize a valid header — a string like `b"\x89PNG\r\n\x1a\nfake"` will be rejected (zero IHDR dims), causing tests to fail with "PNG too small" instead of the case you meant to test.
+- **Templated `/slicer/exec` payload tests must NOT run the rendered Python.** Use `ast.parse(rendered_source)` to confirm syntactic validity only; never evaluate the templated body — both because real evaluation would need Slicer's runtime AND because pre-commit hooks flag the relevant builtins. See `tests/unit/test_exec.py` for the parse-only pattern.
+- **DICOM JSON fixtures should mirror PS3.18 §F shape.** Tag values are dicts: `{"vr": "...", "Value": [...]}`. PN values are objects: `{"Alphabetic": "..."}`. Empty / missing tags are common in the wild — `tests/unit/test_dicom_tags.py` covers the absence cases. When mocking QIDO endpoints, use the `_TEST_*` fixture shape from `test_dicom.py` as a starting point (synthetic data only — names, IDs, and UIDs in unit fixtures must never be real PHI; UIDs use the reserved `2.25.*` root per DICOM PS3.5 §B.2). Real DICOM UIDs for live integration tests are read from gitignored `tests/integration/.env` — see `.env.example`.
+- **Orthanc round-trip integration tests should `pytest.skip` if the prerequisite (`dicom pull`) fails.** Slicer's `/slicer/exec` may be disabled in some environments; the test should detect `E_HTTP_5XX` from the pull and skip rather than asserting on downstream state. See `test_dicom_live.py::test_dicom_pull_then_query_round_trip` for the pattern.

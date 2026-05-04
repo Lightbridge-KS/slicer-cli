@@ -2,10 +2,10 @@
 
 | Field | Value |
 |---|---|
-| Last updated | 2026-05-03 |
+| Last updated | 2026-05-04 |
 | Plan | `/Users/kittipos/.claude/plans/glimmering-painting-lagoon.md` |
 | PRD | [`Slicer-CLI-PRD.md`](./Slicer-CLI-PRD.md) |
-| Status | **Phase 1 complete ✓ — 128 tests green (111 unit + 17 integration)** |
+| Status | **Phase 2 complete ✓ — 199 tests green (173 unit + 26 integration; full Orthanc round-trip verified live against developer's local CXR fixture)** |
 
 ---
 
@@ -142,29 +142,45 @@
 
 ---
 
-## Phase 2 — Rendering + DICOM
+## Phase 2 — Rendering + DICOM ✓
 
-**Goal:** Render slices/3D to PNG; QIDO/WADO and OrthanC pull both work.
+**Goal:** Render slices/3D to PNG; QIDO/WADO and Orthanc pull both work.
 
-- [ ] `render slice [--view --orientation --offset --scrollTo --size] [--out path|-]`
-- [ ] `render threed [--look A|P|L|R|S|I] [--out]`
-- [ ] `render screenshot [--out]` (warns if main-window absent)
-- [ ] `render gltf [--widget 0] [--out]`
-- [ ] Binary output handling: `--out path` or `-` (stdout); JSON envelope to stderr in `--json` mode
-- [ ] Empty/black-PNG detection (catches headless-without-Mesa) → `E_BAD_RESPONSE` with hint
-- [ ] `dicom studies [--patient --limit --offset]`
-- [ ] `dicom series <studyUID>`
-- [ ] `dicom instances <studyUID> <seriesUID>`
-- [ ] `dicom instance <studyUID> <seriesUID> <sopUID> [--out path]` (WADO-RS)
-- [ ] `dicom meta <studyUID> [<seriesUID> [<sopUID>]]`
-- [ ] `dicom pull --orthanc <prefix> --study <UID> [--store dicom-web] [--token T]`
-- [ ] `dicom pull` fallback hint surfaces on the known Slicer-side bug (surface-report §8.1)
-- [ ] Unit + integration tests
+### Batch 1 — Render ✓
 
-### Cross-cutting
+- [x] `render slice [--view --orientation --offset --scroll-to --size] --out path|-` (commit `a67f114`)
+- [x] `render threed [--look A|P|L|R|S|I] --out path|-` (`a67f114`)
+- [x] `render screenshot --out path|-` (warns via 5xx if main-window absent) (`a67f114`)
+- [x] `render gltf [--widget 0] --out path|-` (`a67f114`)
+- [x] Binary output handling: `--out path` or `-` (stdout); JSON envelope to stderr in `--json` mode (reused Phase-1 `render_meta_to_stderr`)
+- [x] Empty/black-PNG detection (catches headless-without-Mesa) → `E_BAD_RESPONSE` with literal `GALLIUM_DRIVER=llvmpipe` hint (`a67f114`)
 
-- [ ] Update User Manual for AI Agent and Human at `docs/Slicer-CLI-UserManual.md` 
-- [ ] Update relevant AGENTS.md 
+### Batch 2 — DICOMweb read ✓
+
+- [x] `dicom studies [--patient --limit --offset]` (commit `9dcaf2f`)
+- [x] `dicom series <studyUID>` (`9dcaf2f`)
+- [x] `dicom instances <studyUID> <seriesUID>` (`9dcaf2f`)
+- [x] `dicom instance <studyUID> <seriesUID> <sopUID> --out path|-` (WADO-RS) (`9dcaf2f`)
+- [x] `dicom meta <studyUID> [<seriesUID> [<sopUID>]]` (variadic CLI, three client methods) (`9dcaf2f`)
+- [x] `Route` dataclass `note` field + `accessDICOMwebStudy` flagged with §8.1 bug pointer (`9dcaf2f`)
+- [x] DICOM JSON tag-flatten helpers in `client/_dicom_tags.py` (`9dcaf2f`)
+- [x] `StudyRef` / `SeriesRef` / `InstanceRef` pydantic models with `.raw` blob preserved (`9dcaf2f`)
+
+### Batch 3 — `dicom pull` via /exec ✓
+
+- [x] `dicom pull --orthanc <prefix> --study <UID> [--store dicom-web] [--token T]` (commit `b3be863`)
+- [x] `client/_exec.py::build_exec_payload` — single insertion point for Phase 3's audit-log; `mrml.save_scene` refactored to use it (`b3be863`)
+- [x] `dicom pull` 5xx hint surfaces cleanly when /exec disabled (the documented Slicer-side bug workaround) (`b3be863`)
+- [x] Orthanc autouse skip fixture in `tests/integration/conftest.py` + `requires_orthanc` marker (`b3be863`)
+- [x] End-to-end Orthanc → Slicer round-trip integration test against a developer-supplied CXR fixture (UIDs read from gitignored `tests/integration/.env`; skips cleanly if Orthanc DICOMweb or the env vars are unavailable) (`b3be863`)
+- [x] Unit + integration tests
+
+### Cross-cutting ✓
+
+- [x] Update User Manual `docs/Slicer-CLI-UserManual.md`: promote render/dicom out of §4.6, add §5.6 render workflows, §5.7 Orthanc workflow (placeholder UIDs only; PHI kept out)
+- [x] Update `src/slicer_cli/AGENTS.md`: validators / exec / DICOM tag-flatten patterns documented
+- [x] Update `tests/AGENTS.md`: PNG fixture pattern + Orthanc skip pattern + DICOM JSON shape notes
+- [x] Update root `AGENTS.md`: status line bumped to Phases 0+1+2 complete
 
 ---
 

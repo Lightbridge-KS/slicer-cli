@@ -1,8 +1,8 @@
 # `slicer-cli` — User Manual
 
 > Audience: **AI agents (primary)** and humans (secondary).
-> Scope: everything that ships in **Phase 1** (core read/write surface).
-> Status: 2026-05-04 — Phase 1 complete; Phase 2/3 features (render, DICOMweb, markup, exec) are stubs that emit `E_NOT_IMPLEMENTED` until those phases land.
+> Scope: everything that ships in **Phase 1 + Phase 2** (core read/write + render + DICOMweb).
+> Status: 2026-05-04 — Phases 0–2 complete; Phase 3 features (markup, formal `exec`, `gui layout`) are stubs that emit `E_NOT_IMPLEMENTED` until that phase lands.
 
 This is a working manual, not a tutorial — it is meant to be skimmed by an
 agent on first contact and used as a lookup table afterward. If a section
@@ -106,7 +106,7 @@ or first ancestor) → `~/.config/slicer-cli/config.toml` → built-in defaults.
 
 ---
 
-## 4. Phase-1 command surface
+## 4. Command surface (Phases 1 + 2)
 
 Tier 1 = ready to use. Tier 2 = stub (returns `E_NOT_IMPLEMENTED` with a
 `Phase N` hint).
@@ -118,7 +118,7 @@ Tier 1 = ready to use. Tier 2 = stub (returns `E_NOT_IMPLEMENTED` with a
 | `slicer-cli status` | One-call liveness + version probe (the canonical "is it on?"). |
 | `slicer-cli system version` | Same data as `status`, scoped under the `system` group. |
 | `slicer-cli doctor` | Capability matrix (reachable, slicer-api, dicomweb, power-tool, render). Each probe is independent; one failure does not abort the rest. |
-| `slicer-cli api routes [--method M] [--destructive] [--phase "Phase N"]` | Pure-offline route inventory (32 entries, derived from PRD Appendix A). Use this to discover the underlying HTTP surface. |
+| `slicer-cli api routes [--method M] [--destructive] [--phase "Phase N"]` | Pure-offline route inventory (32+ entries, derived from PRD Appendix A). Use this to discover the underlying HTTP surface. The `note` field flags Slicer-side bugs and CLI workarounds (e.g., `accessDICOMwebStudy` is bypassed via `/exec`). |
 | `slicer-cli config show / get / path` | Inspect merged configuration. |
 
 ### 4.2 MRML scene & nodes
@@ -151,15 +151,52 @@ Tier 1 = ready to use. Tier 2 = stub (returns `E_NOT_IMPLEMENTED` with a
 | `slicer-cli sample list` | Curated catalogue of 4 verified Slicer samples. Pure offline. |
 | `slicer-cli sample load <name>` | Triggers Slicer's `SampleData` module to download/load. Accepts any string (Slicer's actual list is larger than the curated 4). |
 
-### 4.5 Escape hatch
+### 4.5 Render (Phase 2)
+
+All four render commands write binary content. Following the established
+binary-output contract: `--out` is **required**; pass `--out -` for stdout
+(JSON envelope routed to stderr in `--json` mode so stdout stays pure
+binary).
+
+| Command | Description |
+|---|---|
+| `slicer-cli render slice [--view red\|yellow\|green] [--orientation axial\|sagittal\|coronal] [--offset MM] [--scroll-to 0..1] [--size PX] --out path\|-` | Render one slice viewer to PNG. Default `--view red`. |
+| `slicer-cli render threed [--look A\|P\|L\|R\|I\|S] --out path\|-` | Render the first 3D view to PNG from a cardinal axis. Arbitrary cameras require Phase 3's `exec`. |
+| `slicer-cli render screenshot --out path\|-` | Grab Slicer's main window as PNG. Requires the GUI to be alive (`slicer.util.mainWindow().grab()` under the hood). |
+| `slicer-cli render gltf [--widget 0] --out path\|-` | Export a 3D widget as glTF. Slicer 5.11 returns JSON glTF (~10 KB) on this endpoint, despite the legacy "binary geometry" name. |
+
+**Empty/black-PNG protection:** the client validates every PNG response —
+magic-byte check + size ≥ 256 bytes + non-zero IHDR width/height. If any of
+these fail you get `E_BAD_RESPONSE` with a hint that literally contains
+`GALLIUM_DRIVER=llvmpipe` (the fix for headless Linux without GPU). The
+same gate runs inside `doctor`'s `render` probe, so a green probe means
+the real commands will succeed too.
+
+### 4.6 DICOMweb (Phase 2)
+
+Slicer's DICOMweb endpoints (`/dicom/*`) read from `slicer.dicomDatabase`
+— anything not yet imported into Slicer's local DB is invisible to QIDO
+queries. Use `dicom pull` to populate the DB from a remote DICOMweb peer
+(typically Orthanc).
+
+| Command | Description |
+|---|---|
+| `slicer-cli dicom studies [--patient PID] [--limit N] [--offset N]` | QIDO list studies. Common DICOM tags (PatientName, PatientID, StudyDate, …) flattened into Pythonic fields; full DICOM JSON Model is *not* in this output (use `dicom meta` for that). |
+| `slicer-cli dicom series <studyUID>` | QIDO list series for a study. |
+| `slicer-cli dicom instances <studyUID> <seriesUID>` | QIDO list instances for a series. |
+| `slicer-cli dicom instance <studyUID> <seriesUID> <sopUID> --out path\|-` | WADO-RS retrieve. Writes raw DICOM Part-10 bytes (the `DICM` magic at byte 128 confirms a valid file). `--out` required, same as `volume export`. |
+| `slicer-cli dicom meta <studyUID> [<seriesUID> [<sopUID>]]` | DICOM JSON Model metadata at study, series, or instance level (variadic by positional arity). |
+| `slicer-cli dicom pull --orthanc <url> --study <UID> [--store dicom-web] [--token T]` | Import a study from a DICOMweb peer into Slicer's DB. **Routes through `/slicer/exec`** (the native `accessDICOMwebStudy` endpoint has a Slicer-side Python bug — see `api routes`). Requires `/slicer/exec` enabled on Slicer. |
+
+### 4.7 Escape hatch
 
 | Command | Description |
 |---|---|
 | `slicer-cli api raw <method> <path> [--query K=V ...] [--body @file] [--out path] [--confirm]` | Issue an arbitrary HTTP call. JSON responses are parsed into the envelope; non-JSON requires `--out`. Destructive `(method, path)` pairs (per `routes.DESTRUCTIVE_RAW`) require `--confirm`. |
 
-### 4.6 Stubs (Phase 2/3, return `E_NOT_IMPLEMENTED` for now)
+### 4.8 Stubs (Phase 3, return `E_NOT_IMPLEMENTED` for now)
 
-`render slice/threed/screenshot/gltf` (Phase 2), `dicom studies/series/instances/meta/instance/pull` (Phase 2), `markup list/fiducial-set/line/...` (Phase 3), `exec` (Phase 3), `gui layout` (Phase 3).
+`markup list/fiducial-set/line/...` (Phase 3), `exec` (Phase 3 — the formal command, with audit log), `gui layout` (Phase 3).
 
 ---
 
@@ -233,8 +270,10 @@ done
 ```bash
 slicer-cli --json doctor | jq '.checks[] | select(.ok == false)'
 # Empty output → all six probes green.
-# Non-empty → branch on the failing probe; e.g., if "render" is FAIL,
-# don't try Phase-2 render commands.
+# Non-empty → branch on the failing probe:
+#   - "render" FAIL  → render commands will fail with E_BAD_RESPONSE
+#   - "dicomweb" FAIL → /dicom/* endpoints unavailable on this Slicer
+#   - "power-tool-endpoint" FAIL → `scene save` and `dicom pull` will 5xx
 ```
 
 ### 5.5 Discover the underlying HTTP surface
@@ -242,14 +281,108 @@ slicer-cli --json doctor | jq '.checks[] | select(.ok == false)'
 ```bash
 # What can the CLI talk to?
 slicer-cli --json api routes --phase "Phase 1" | jq '.routes | length'
+slicer-cli --json api routes --phase "Phase 2" | jq '.routes | length'
 
 # Which ones are destructive?
 slicer-cli --json api routes --destructive | jq '.routes[] | "\(.method) \(.path)"'
+
+# Which routes have known caveats? (the `note` field surfaces Slicer-side bugs)
+slicer-cli --json api routes | jq '.routes[] | select(.note != null) | {path, note}'
 
 # Bypass the typed wrapper for an experiment:
 slicer-cli --json api raw GET /slicer/mrml/ids --query class=vtkMRMLViewNode \
   | jq '.response'
 ```
+
+### 5.6 Render workflows (Phase 2)
+
+```bash
+# Render a sagittal slice 12 mm anterior of origin from the green viewer.
+slicer-cli --json render slice \
+    --view green --orientation sagittal --offset 12 --size 512 \
+    --out /tmp/sag.png
+file /tmp/sag.png            # → PNG image data, ...
+
+# Render the 3D view from the anterior cardinal axis.
+slicer-cli --json render threed --look A --out /tmp/3d_a.png
+
+# Window screenshot (needs Slicer GUI alive — fails cleanly under strict-headless).
+slicer-cli --json render screenshot --out /tmp/window.png
+
+# Stream PNG bytes directly to ImageMagick:
+slicer-cli --json render slice --out - 2>/tmp/meta.json | convert - /tmp/cv.jpg
+jq '.bytes' /tmp/meta.json   # envelope landed on stderr, stdout was pure PNG
+
+# Empty/black PNG defence — e.g., a 0-pixel render returns:
+#   {"ok": false, "error": {"code": "E_BAD_RESPONSE",
+#    "hint": "On headless Linux without GPU, set GALLIUM_DRIVER=llvmpipe ..."}}
+```
+
+### 5.7 Orthanc-driven DICOM workflow (Phase 2)
+
+End-to-end: **pull a study from Orthanc into Slicer, then query and fetch
+via DICOMweb.** Tested against a local Orthanc + radiology test fixture.
+
+**Prerequisites:**
+- Orthanc running on `http://localhost:8042` (default ports)
+- Orthanc's **DICOMweb plugin loaded** (the Mac default install does *not*
+  ship with it — install via `brew install orthanc-dicomweb` or download
+  the prebuilt `libOrthancDicomWeb.dylib`, then add `"OrthancDicomWeb"` to
+  the `Plugins` array in `orthanc.json` and restart). Verify with
+  `curl http://localhost:8042/dicom-web/studies` — should return `[]` or a
+  study list, NOT 404.
+- Slicer's `/exec` enabled (the YOLO default; check
+  `slicer-cli doctor --json | jq '.checks[] | select(.name=="power-tool-endpoint")'`).
+
+> **A note on UIDs.** Real DICOM `StudyInstanceUID` / `SeriesInstanceUID` /
+> `SOPInstanceUID` values are HIPAA-relevant identifiers (PHI) — the
+> examples below use placeholders. Substitute UIDs from your own Orthanc
+> store when running these commands. The `PatientID` filter is an
+> exact-match on the *MRN*, not a name substring (see DICOM PS3.18 QIDO).
+
+```bash
+# 0. Set placeholders to UIDs / MRN from your own Orthanc fixture.
+STUDY="<your-study-instance-uid>"
+SERIES="<your-series-instance-uid>"
+SOP="<your-sop-instance-uid>"
+MRN="<your-patient-mrn>"
+
+# 1. Pull a study from Orthanc into Slicer's DICOM database.
+slicer-cli --json dicom pull \
+    --orthanc http://localhost:8042 \
+    --study "$STUDY"
+# → {"ok": true, "imported_count": 1, "study_uid": "..."}
+
+# 2. QIDO: confirm Slicer now sees the study, optionally filtered by MRN.
+slicer-cli --json dicom studies --patient "$MRN" \
+    | jq '.studies[] | {patient_name, study_date, study_description}'
+
+# 3. List the series in that study.
+slicer-cli --json dicom series "$STUDY" | jq '.series[] | .series_uid'
+
+# 4. List instances in the (sole) series.
+slicer-cli --json dicom instances "$STUDY" "$SERIES" | jq '.instances[] | .sop_uid'
+
+# 5. WADO-RS retrieve the actual DICOM file.
+slicer-cli --json dicom instance "$STUDY" "$SERIES" "$SOP" --out /tmp/cxr.dcm
+head -c 132 /tmp/cxr.dcm | tail -c 4      # → "DICM" magic at byte 128
+
+# 6. Full DICOM JSON metadata at any level.
+slicer-cli --json dicom meta "$STUDY"                  | jq '.meta | length'
+slicer-cli --json dicom meta "$STUDY" "$SERIES"        | jq '.meta | length'
+slicer-cli --json dicom meta "$STUDY" "$SERIES" "$SOP" | jq '.meta | length'
+```
+
+**If `dicom pull` fails with `E_HTTP_5XX` and the message says `unknown
+command "b'/exec'"`** — `/slicer/exec` is disabled in your Slicer build.
+Either enable it (Slicer's WebServer module settings) or load the study
+manually via Slicer's GUI (the rest of the DICOMweb commands then work
+against the manually-imported data).
+
+**If `dicom pull` fails with a Python error inside the `/exec` response**
+about `dicomWebEndpoint` or `accessToken` — your Slicer build's
+`DICOMUtils.importFromDICOMWeb` has a different signature. Run
+`slicer-cli api raw POST /slicer/exec --body '@-' --confirm <<<'help(__import__("DICOMLib").DICOMUtils.importFromDICOMWeb)'` to inspect the actual API.
 
 ---
 
@@ -342,20 +475,22 @@ slicer-cli config path           # which TOMLs were loaded
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | `E_NOT_RUNNING` on `status` | WebServer not started in Slicer | Start it from the *Web Server* module. |
-| `E_HTTP_5XX` on `scene save` with body containing `unknown command "b'/exec'"` | `/slicer/exec` is disabled in this Slicer build | Either enable it (Slicer's WebServer settings) or skip `scene save`. |
+| `E_HTTP_5XX` on `scene save` or `dicom pull` with body containing `unknown command "b'/exec'"` | `/slicer/exec` is disabled in this Slicer build | Either enable it (Slicer's WebServer settings) or skip these commands. |
 | `E_HTTP_5XX` on `volume export` with unknown id | The volume isn't loaded | `volume list` first; verify the id. |
 | `volume export` writes a 0-byte file | Slicer responded but the volume was empty | Check `volume show <id>` for `Spacing` / `Origin` sanity. |
 | `api raw` blocks with `E_DESTRUCTIVE` even though method is `GET` | Path matches a destructive override | Run `api routes --destructive` to see the list. |
+| `E_BAD_RESPONSE` on `render slice` with hint mentioning `GALLIUM_DRIVER=llvmpipe` | Headless Linux without GPU + no software-OpenGL fallback | `export GALLIUM_DRIVER=llvmpipe` before launching Slicer. |
+| `dicom studies` returns `[]` even after `dicom pull` succeeded | Slicer's DICOM database is per-instance, not Orthanc-backed | The pulled study now lives inside Slicer's DB; check Slicer's DICOM module. Re-running `dicom pull` for an already-imported study is idempotent. |
+| `dicom pull` 404 on `dicom-web/` paths against Orthanc | Orthanc's DICOMweb plugin isn't loaded | Install OrthancDicomWeb plugin (e.g., `brew install orthanc-dicomweb`) and add `"OrthancDicomWeb"` to `Plugins` in `orthanc.json`. |
 | `pytest` complains about respx routes not called when testing guards | The guard fired before the HTTP call (correct behaviour) | Use `respx.mock(..., assert_all_called=False)` in those tests. |
 
 ---
 
-## 10. What's NOT in Phase 1
+## 10. What's NOT in Phases 1+2
 
 These return `E_NOT_IMPLEMENTED` until their phase ships:
 
-- **Phase 2:** `render slice/threed/screenshot/gltf`, `dicom studies/series/instances/meta/instance/pull`.
-- **Phase 3:** `markup list/fiducial-set/line/...`, `exec`, `gui layout`.
+- **Phase 3:** `markup list/fiducial-set/line/...`, formal `exec` (with audit log), `gui layout`. Note: `scene save` and `dicom pull` *do* use `/slicer/exec` under the hood today via templated payloads — Phase 3 will retroactively gate them through the audit-log machinery.
 - **Phase 4:** the companion Claude skill at `.claude/skills/slicer-cli/`.
 
 Use `slicer-cli api routes --json` to see the full route table including
