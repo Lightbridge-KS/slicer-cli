@@ -6,10 +6,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from slicer_cli.cli.output import OutputMode
 from slicer_cli.client._internal.audit import AuditLogger
 from slicer_cli.client.base import SlicerClient
 from slicer_cli.config import AppConfig, load_config
-from slicer_cli.output import OutputMode
 
 
 @dataclass(frozen=True, slots=True)

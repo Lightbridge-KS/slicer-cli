@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import ast
 
-from slicer_cli.client._internal.exec import build_exec_payload
+from slicer_cli.client._internal.exec_template import build_exec_payload
 
 
 def _assert_parses(source: str) -> None:

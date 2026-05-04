@@ -9,7 +9,7 @@ from httpx import Response
 from typer.testing import CliRunner
 
 from slicer_cli.cli.app import app
-from slicer_cli.cli.mrml.sample import CURATED_SAMPLES
+from slicer_cli.cli.sample import CURATED_SAMPLES
 
 
 def test_sample_list_returns_curated(runner: CliRunner) -> None:

@@ -6,12 +6,12 @@ import io
 import json
 from contextlib import redirect_stdout
 
+from slicer_cli.cli.output import render_error, render_success
 from slicer_cli.client.errors import (
     ErrorCode,
     SlicerEmptySelectorError,
     SlicerError,
 )
-from slicer_cli.output import render_error, render_success
 
 
 def test_render_success_json_envelope() -> None:

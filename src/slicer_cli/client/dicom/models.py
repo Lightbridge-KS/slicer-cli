@@ -11,7 +11,7 @@ from typing import Any
 
 from pydantic import Field
 
-from slicer_cli.client.models._base import _SlicerModel
+from slicer_cli.client._internal.models_base import _SlicerModel
 
 
 class StudyRef(_SlicerModel):

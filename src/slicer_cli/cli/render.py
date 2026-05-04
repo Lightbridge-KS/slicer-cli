@@ -15,8 +15,8 @@ from pathlib import Path
 import typer
 
 from slicer_cli.cli._internal.context import CliContext
+from slicer_cli.cli.output import render_error, render_meta_to_stderr, render_success
 from slicer_cli.client.errors import SlicerError, exit_code_for
-from slicer_cli.output import render_error, render_meta_to_stderr, render_success
 
 app = typer.Typer(no_args_is_help=True, help="Render slice, 3D, screenshot, glTF.")
 

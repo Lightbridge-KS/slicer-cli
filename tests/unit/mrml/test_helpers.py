@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from slicer_cli.cli.mrml._helpers import (
+from slicer_cli.cli._internal.mrml_helpers import (
     attach_class_to_refs,
     format_node_table,
     id_to_class,

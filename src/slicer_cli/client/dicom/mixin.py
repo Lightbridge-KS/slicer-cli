@@ -15,7 +15,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from slicer_cli.client._internal.dicom_tags import (
+from slicer_cli.client._internal.exec_template import build_exec_payload
+from slicer_cli.client._internal.http import _HttpClient
+from slicer_cli.client.dicom.models import InstanceRef, SeriesRef, StudyRef
+from slicer_cli.client.dicom.tags import (
     TAG_ACCESSION_NUMBER,
     TAG_INSTANCE_NUMBER,
     TAG_MODALITIES_IN_STUDY,
@@ -33,10 +36,7 @@ from slicer_cli.client._internal.dicom_tags import (
     dicom_tag_value,
     dicom_value_list,
 )
-from slicer_cli.client._internal.exec import build_exec_payload
-from slicer_cli.client._internal.http import _HttpClient
 from slicer_cli.client.errors import SlicerBadInputError, SlicerBadResponseError
-from slicer_cli.client.models import InstanceRef, SeriesRef, StudyRef
 
 
 class DicomMixin(_HttpClient):

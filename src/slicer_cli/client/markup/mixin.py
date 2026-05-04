@@ -11,10 +11,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from slicer_cli.client._internal.exec import build_exec_payload
+from slicer_cli.client._internal.exec_template import build_exec_payload
 from slicer_cli.client._internal.http import _HttpClient
 from slicer_cli.client.errors import SlicerBadInputError, SlicerBadResponseError
-from slicer_cli.client.models import (
+from slicer_cli.client.markup.models import (
     FiducialNode,
     FiducialPoint,
     LineMarkupResult,

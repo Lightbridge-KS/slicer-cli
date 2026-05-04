@@ -11,13 +11,14 @@ from collections.abc import Sequence
 
 from rich.table import Table
 
+from slicer_cli.client.models import NodeRef
+
 # Re-export so `cli/mrml/*.py` modules have a single import point for
 # the helpers they need, without reaching across into `client/_id_helpers`.
-from slicer_cli.client._internal.id_helpers import (
+from slicer_cli.client.mrml.id_helpers import (
     attach_class_to_refs as attach_class_to_refs,
     id_to_class as id_to_class,
 )
-from slicer_cli.client.models import NodeRef
 
 
 def parse_class_filter(value: str | None) -> str | None:

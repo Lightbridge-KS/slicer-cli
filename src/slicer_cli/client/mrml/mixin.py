@@ -13,14 +13,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from slicer_cli.client._internal.exec import build_exec_payload
+from slicer_cli.client._internal.exec_template import build_exec_payload
 from slicer_cli.client._internal.http import _HttpClient
-from slicer_cli.client._internal.id_helpers import attach_class_to_refs
 from slicer_cli.client.errors import (
     SlicerBadInputError,
     SlicerBadResponseError,
 )
-from slicer_cli.client.models import DeleteResult, LoadResult, NodeRef
+from slicer_cli.client.mrml.id_helpers import attach_class_to_refs
+from slicer_cli.client.mrml.models import DeleteResult, LoadResult, NodeRef
 
 # `filetype` values that POST /slicer/mrml accepts (per PRD Appendix A).
 LOAD_FILETYPES: frozenset[str] = frozenset(

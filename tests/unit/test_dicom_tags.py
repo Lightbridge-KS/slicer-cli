@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from slicer_cli.client._internal.dicom_tags import (
+from slicer_cli.client.dicom.tags import (
     TAG_MODALITIES_IN_STUDY,
     TAG_PATIENT_NAME,
     TAG_STUDY_DATE,
